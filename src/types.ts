@@ -77,6 +77,45 @@ export interface Observation {
   capabilities: string[];
 }
 
+export interface VerificationCheck {
+  name: string;
+  passed: boolean;
+  message: string;
+}
+
+export interface VerificationResult {
+  status: VerificationStatus;
+  changed?: boolean;
+  checks: VerificationCheck[];
+  message?: string;
+}
+
+export interface DialogAdapter {
+  selectFile(path: string): Promise<ActionResult>;
+  selectFolder(path: string): Promise<ActionResult>;
+  setSavePath(path: string): Promise<ActionResult>;
+}
+
+export interface BrowserTarget {
+  id: string;
+  type: string;
+  title?: string;
+  url?: string;
+  webSocketDebuggerUrl?: string;
+}
+
+export interface ComputerAdapter {
+  readonly platform: Platform;
+  readonly name: string;
+
+  status(): Promise<AdapterStatus>;
+  start(): Promise<void>;
+  observe(): Promise<Observation>;
+  act(request: ActionRequest): Promise<ActionResult>;
+  stop(): Promise<void>;
+  dialogs?: DialogAdapter;
+}
+
 export type Action =
   | {
       type: "click";
