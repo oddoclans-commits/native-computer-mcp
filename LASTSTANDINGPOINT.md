@@ -55,7 +55,7 @@ UIA primary click preference:
 - Linux currently supports X11 pointer input and AT-SPI semantic accessibility; Wayland pointer input is not implemented.
 - Accessibility tree support is Windows-first.
 - OCR is not implemented.
-- Browser/CDP surface has direct target listing, accessibility snapshot, state/verify, navigation, find, click, type, and Runtime.evaluate.
+- Browser/CDP surface has direct target listing, raw + normalized accessibility snapshots, state/verify, navigation, find, click, type, and Runtime.evaluate.
 - Windows file/folder/save dialogs are now first-class tools.
 - macOS AX adapter is implemented; real desktop permission/runtime testing still requires a macOS user session.
 - Rich verification now has a reusable state/screenshot diff primitive and `computer_diff` MCP tool.

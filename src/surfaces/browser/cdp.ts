@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import WebSocket from "ws";
-import type { BrowserTarget } from "../../types.js";
+import type { AccessibilityNode, BrowserTarget } from "../../types.js";
 
 interface CdpMessage {
   id?: number;
@@ -73,6 +73,13 @@ export class CdpBrowserSurface {
     const connection = await this.connectionFor(targetId, endpoint);
     await this.call(connection, "Accessibility.enable", {});
     return this.call(connection, "Accessibility.getFullAXTree", {});
+  }
+
+  async accessibility(
+    targetId: string,
+    endpoint = "http://127.0.0.1:9222"
+  ): Promise<AccessibilityNode[]> {
+    return normalizeCdpAxTree(await this.snapshot(targetId, endpoint));
   }
 
   async navigate(
@@ -345,4 +352,100 @@ export class CdpBrowserSurface {
 
     return (await response.json()) as T;
   }
+}
+
+
+export function normalizeCdpAxTree(value: unknown): AccessibilityNode[] {
+  const source = value as { nodes?: unknown[] } | null;
+  const nodes = Array.isArray(source?.nodes) ? source.nodes : [];
+  const byId = new Map<string, AccessibilityNode>();
+  const childrenById = new Map<string, string[]>();
+
+  for (const raw of nodes) {
+    const node = raw as Record<string, unknown>;
+    const id = typeof node.nodeId === "string" ? node.nodeId : undefined;
+    if (!id) continue;
+
+    const role = axString(node.role) ?? "unknown";
+    const name = axValue(node.name);
+    const currentValue = axValue(node.value);
+    const backendId =
+      typeof node.backendDOMNodeId === "number"
+        ? String(node.backendDOMNodeId)
+        : undefined;
+    const properties = Array.isArray(node.properties) ? node.properties : [];
+    const focused = axPropertyBoolean(properties, "focused");
+    const disabled = axPropertyBoolean(properties, "disabled");
+
+    const normalized: AccessibilityNode = {
+      id: "cdp:" + id,
+      role,
+      ...(name ? { name } : {}),
+      ...(currentValue ? { value: currentValue } : {}),
+      ...(backendId ? { automationId: backendId } : {}),
+      ...(focused !== undefined ? { focused } : {}),
+      ...(disabled !== undefined ? { enabled: !disabled } : {})
+    };
+
+    byId.set(id, normalized);
+
+    const childIds = Array.isArray(node.childIds)
+      ? node.childIds.filter((child): child is string => typeof child === "string")
+      : [];
+    if (childIds.length) childrenById.set(id, childIds);
+  }
+
+  const referenced = new Set<string>();
+  for (const ids of childrenById.values()) {
+    for (const id of ids) referenced.add(id);
+  }
+
+  const attachChildren = (id: string, path: Set<string>): AccessibilityNode | undefined => {
+    const base = byId.get(id);
+    if (!base || path.has(id)) return base;
+
+    const nextPath = new Set(path);
+    nextPath.add(id);
+
+    const childIds = childrenById.get(id) ?? [];
+    const children = childIds
+      .map((childId) => attachChildren(childId, nextPath))
+      .filter((child): child is AccessibilityNode => child !== undefined);
+
+    return children.length ? { ...base, children } : { ...base };
+  };
+
+  const roots = [...byId.keys()]
+    .filter((id) => !referenced.has(id))
+    .slice(0, 20)
+    .map((id) => attachChildren(id, new Set()))
+    .filter((node): node is AccessibilityNode => node !== undefined);
+
+  return roots.length ? roots : [...byId.values()].slice(0, 500);
+}
+
+function axString(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  return typeof record.value === "string" ? record.value : undefined;
+}
+
+function axValue(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  if (typeof record.value === "string") return record.value;
+  if (typeof record.value === "number" || typeof record.value === "boolean") {
+    return String(record.value);
+  }
+  return undefined;
+}
+
+function axPropertyBoolean(properties: unknown[], name: string): boolean | undefined {
+  for (const property of properties) {
+    if (!property || typeof property !== "object") continue;
+    const record = property as Record<string, unknown>;
+    if (record.name !== name) continue;
+    return axValue(record.value) === "true";
+  }
+  return undefined;
 }

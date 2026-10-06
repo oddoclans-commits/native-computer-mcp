@@ -292,6 +292,21 @@ server.tool(
 );
 
 server.tool(
+  "browser_accessibility",
+  "Return a normalized accessibility tree using the same AccessibilityNode contract as native desktop adapters.",
+  {
+    target_id: z.string().min(1),
+    endpoint: z.string().url().optional()
+  },
+  async ({ target_id, endpoint }) => ({
+    content: [{
+      type: "text",
+      text: JSON.stringify(await browser.accessibility(target_id, endpoint), null, 2)
+    }]
+  })
+);
+
+server.tool(
   "browser_navigate",
   "Navigate a browser target through CDP Page.navigate.",
   {

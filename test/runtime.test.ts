@@ -280,3 +280,36 @@ test("action result traceId matches the persisted trace event and turnId", async
   assert.equal(actEvent?.turnId, "turn-42");
   assert.equal(actEvent?.payload?.result?.traceId, result.traceId);
 });
+
+
+test("browser AX normalization produces the universal accessibility node contract", async () => {
+  const { normalizeCdpAxTree } = await import("../src/surfaces/browser/cdp.js");
+  const roots = normalizeCdpAxTree({
+    nodes: [
+      {
+        nodeId: "1",
+        role: { value: "RootWebArea" },
+        name: { value: "Example" },
+        childIds: ["2"]
+      },
+      {
+        nodeId: "2",
+        role: { value: "button" },
+        name: { value: "Save" },
+        backendDOMNodeId: 42,
+        properties: [
+          { name: "focused", value: { value: true } },
+          { name: "disabled", value: { value: false } }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(roots.length, 1);
+  assert.equal(roots[0]?.role, "RootWebArea");
+  assert.equal(roots[0]?.children?.[0]?.id, "cdp:2");
+  assert.equal(roots[0]?.children?.[0]?.name, "Save");
+  assert.equal(roots[0]?.children?.[0]?.automationId, "42");
+  assert.equal(roots[0]?.children?.[0]?.focused, true);
+  assert.equal(roots[0]?.children?.[0]?.enabled, true);
+});
