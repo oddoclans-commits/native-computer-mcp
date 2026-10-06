@@ -1,4 +1,5 @@
 import { SessionManager } from "./session.js";
+import { findAccessibilityNodes, type AccessibilityMatch } from "./query.js";
 import type {
   ComputerAdapter,
   Observation,
@@ -37,6 +38,19 @@ export class ComputerRuntime {
     const observation = await this.adapter.observe();
     this.sessions.recordObservation(sessionId, observation);
     return observation;
+  }
+
+  find(
+    sessionId: string,
+    observationId: string,
+    query: string,
+    role?: string
+  ): AccessibilityMatch[] {
+    const session = this.sessions.get(sessionId);
+    if (!session.active) throw new Error("Session is not active.");
+
+    const roots = this.sessions.getAccessibility(sessionId, observationId);
+    return findAccessibilityNodes(roots, query, role);
   }
 
   async act(sessionId: string, request: ActionRequest): Promise<ActionResult> {
