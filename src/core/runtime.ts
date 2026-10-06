@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { SessionManager } from "./session.js";
 import { verifyObservation, type VerificationSpec } from "./verification.js";
+import { observationDiff, type ObservationDiff } from "./diff.js";
 import { FileTraceSink } from "./trace.js";
 import { findAccessibilityNodes, type AccessibilityMatch } from "./query.js";
 import type {
@@ -80,11 +81,22 @@ export class ComputerRuntime {
     const observation = this.sessions.getObservation(sessionId, observationId);
     const result = verifyObservation(
       observation,
-      this.sessions.getPreviousFingerprint(sessionId),
+      this.sessions.getPreviousObservation(sessionId),
       spec
     );
     void this.trace.verify(sessionId, observationId, result).catch(() => []);
     return result;
+  }
+
+  diff(sessionId: string, observationId: string): ObservationDiff {
+    const session = this.sessions.get(sessionId);
+    if (!session.active) throw new Error("Session is not active.");
+
+    const observation = this.sessions.getObservation(sessionId, observationId);
+    return observationDiff(
+      this.sessions.getPreviousObservation(sessionId),
+      observation
+    );
   }
 
   async selectFile(

@@ -192,6 +192,23 @@ server.tool(
 );
 
 server.tool(
+  "computer_diff",
+  "Compare the current fresh observation with the previous observation without consuming it.",
+  {
+    session_id: z.string().min(1),
+    observation_id: z.string().min(1)
+  },
+  async ({ session_id, observation_id }) => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(runtime.diff(session_id, observation_id), null, 2)
+      }
+    ]
+  })
+);
+
+server.tool(
   "computer_act",
   "Execute one native action against a fresh observation. Each successful or uncertain action consumes that observation and requires a new observe.",
   {

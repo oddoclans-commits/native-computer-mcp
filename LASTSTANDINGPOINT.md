@@ -58,16 +58,16 @@ UIA primary click preference:
 - Browser/CDP surface has direct target listing, accessibility snapshot, navigation, find, click, type, and Runtime.evaluate.
 - Windows file/folder/save dialogs are now first-class tools.
 - macOS AX adapter is implemented; real desktop permission/runtime testing still requires a macOS user session.
-- Rich post-action verification is still agent-driven via fresh observations.
+- Rich verification now has a reusable state/screenshot diff primitive and `computer_diff` MCP tool.
+- Diffing uses exact screenshot SHA-256 fingerprints plus active-window, display, window, and accessibility-tree deltas.
 
 ## Next engineering order
 
-1. Rich screenshot/state diff helpers.
-2. Browser session persistence and richer browser verification.
-3. Linux AT-SPI richer actions and Wayland bridge.
-4. macOS AX richer actions and screenshot capture.
-5. Trace/artifact retention policy and turn/action evidence IDs.
-7. Broader cross-platform capability negotiation.
+1. Browser session persistence and richer browser verification.
+2. Linux AT-SPI richer actions and Wayland bridge.
+3. macOS AX richer actions and screenshot capture.
+4. Trace/artifact retention policy and turn/action evidence IDs.
+5. Broader cross-platform capability negotiation.
 
 ## Design invariant
 

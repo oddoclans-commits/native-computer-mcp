@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { observationDiff } from "./diff.js";
 import type { Observation, VerificationCheck, VerificationResult } from "../types.js";
 import { findAccessibilityNodes } from "./query.js";
 
@@ -9,6 +10,7 @@ export interface VerificationSpec {
   targetQuery?: string;
   targetRole?: string;
   expectChanged?: boolean;
+  includeDiff?: boolean;
 }
 
 export function observationFingerprint(observation: Observation): string {
@@ -40,13 +42,14 @@ export function observationFingerprint(observation: Observation): string {
 
 export function verifyObservation(
   observation: Observation,
-  previousFingerprint: string | undefined,
+  previousObservation: Observation | undefined,
   spec: VerificationSpec = {}
 ): VerificationResult {
   const checks: VerificationCheck[] = [];
-  const fingerprint = observationFingerprint(observation);
-  const changed =
-    previousFingerprint !== undefined && fingerprint !== previousFingerprint;
+  const diff = previousObservation
+    ? observationDiff(previousObservation, observation)
+    : undefined;
+  const changed = diff?.changed ?? false;
 
   if (spec.activeWindowTitleContains !== undefined) {
     const actual = observation.activeWindow?.title ?? "";
@@ -126,6 +129,9 @@ export function verifyObservation(
     checks,
     message: passed
       ? "All requested verification checks passed."
-      : "One or more verification checks failed."
+      : "One or more verification checks failed.",
+    ...(diff && (spec.includeDiff || spec.expectChanged !== undefined)
+      ? { diff }
+      : {})
   };
 }

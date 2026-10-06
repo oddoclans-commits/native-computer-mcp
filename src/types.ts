@@ -76,6 +76,31 @@ export interface Observation {
   capabilities: string[];
 }
 
+export interface ScreenshotDiff {
+  changed: boolean;
+  previousSha256?: string;
+  currentSha256?: string;
+  previousDimensions?: { width?: number; height?: number };
+  currentDimensions?: { width?: number; height?: number };
+}
+
+export interface EntityDiff {
+  addedIds: string[];
+  removedIds: string[];
+  changedIds: string[];
+}
+
+export interface ObservationDiff {
+  hasPrevious: boolean;
+  changed: boolean;
+  changedFields: string[];
+  activeWindowChanged: boolean;
+  displaysChanged: boolean;
+  windows: EntityDiff;
+  accessibility: EntityDiff;
+  screenshot: ScreenshotDiff;
+}
+
 export interface VerificationCheck {
   name: string;
   passed: boolean;
@@ -87,6 +112,7 @@ export interface VerificationResult {
   changed?: boolean;
   checks: VerificationCheck[];
   message?: string;
+  diff?: ObservationDiff;
 }
 
 export type Action =

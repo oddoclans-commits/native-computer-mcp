@@ -50,16 +50,15 @@ v0.1 currently includes:
 - Linux X11 native input + window/display discovery + screenshots
 - Linux AT-SPI semantic accessibility discovery when pyatspi is available
 - explicit action/verification semantics
-- GitHub Actions CI on Linux and Windows
+- GitHub Actions CI on Linux, Windows, and macOS
 
-Not yet implemented:
+Current limitations:
 
-- accessibility trees / UI Automation
-- OCR
-- file dialogs
-- browser surface
-- macOS adapter
-- richer post-action verification
+- OCR is not implemented.
+- Wayland input is not implemented.
+- Browser CDP actions are direct browser-surface tools and are not yet integrated into the desktop observation/verification lifecycle.
+- macOS requires Accessibility permission and a real interactive user session for runtime validation.
+- Rich diffing compares screenshot fingerprints and semantic/window state; pixel heatmaps are not included yet.
 
 ## Development
 

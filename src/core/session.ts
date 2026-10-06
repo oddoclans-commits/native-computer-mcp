@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { observationFingerprint } from "./verification.js";
+import { screenshotFingerprint } from "./diff.js";
 import type { AccessibilityNode, Observation, RuntimeSession } from "../types.js";
 
 interface StoredObservation {
@@ -11,12 +12,20 @@ interface StoredObservation {
   windows: Observation["windows"];
   accessibility: AccessibilityNode[];
   capabilities: string[];
+  timestamp: string;
+  screenshot?: {
+    sha256: string;
+    mimeType: string;
+    width?: number;
+    height?: number;
+  };
 }
 
 export class SessionManager {
   private readonly sessions = new Map<string, RuntimeSession>();
   private readonly observations = new Map<string, StoredObservation>();
   private readonly previousFingerprints = new Map<string, string>();
+  private readonly previousObservations = new Map<string, StoredObservation>();
 
   create(): RuntimeSession {
     const session: RuntimeSession = {
@@ -37,7 +46,10 @@ export class SessionManager {
   recordObservation(sessionId: string, observation: Observation): void {
     const session = this.get(sessionId);
     const previous = this.observations.get(sessionId);
-    if (previous) this.previousFingerprints.set(sessionId, previous.fingerprint);
+    if (previous) {
+      this.previousFingerprints.set(sessionId, previous.fingerprint);
+      this.previousObservations.set(sessionId, structuredClone(previous));
+    }
 
     session.observationId = observation.observationId;
     this.observations.set(sessionId, {
@@ -50,7 +62,22 @@ export class SessionManager {
       accessibility: observation.accessibility
         ? structuredClone(observation.accessibility)
         : [],
-      capabilities: [...observation.capabilities]
+      capabilities: [...observation.capabilities],
+      timestamp: observation.timestamp,
+      ...(screenshotFingerprint(observation)
+        ? {
+            screenshot: {
+              sha256: screenshotFingerprint(observation)!.sha256,
+              mimeType: observation.screenshot?.mimeType ?? "application/octet-stream",
+              ...(observation.screenshot?.width !== undefined
+                ? { width: observation.screenshot.width }
+                : {}),
+              ...(observation.screenshot?.height !== undefined
+                ? { height: observation.screenshot.height }
+                : {})
+            }
+          }
+        : {})
     });
   }
 
@@ -79,6 +106,36 @@ export class SessionManager {
     return this.previousFingerprints.get(sessionId);
   }
 
+  getPreviousObservation(sessionId: string): Observation | undefined {
+    const stored = this.previousObservations.get(sessionId);
+    if (!stored) return undefined;
+
+    return {
+      observationId: stored.observationId,
+      timestamp: stored.timestamp,
+      platform: stored.platform,
+      ...(stored.activeWindow ? { activeWindow: structuredClone(stored.activeWindow) } : {}),
+      displays: structuredClone(stored.displays),
+      windows: structuredClone(stored.windows),
+      accessibility: structuredClone(stored.accessibility),
+      capabilities: [...stored.capabilities],
+      ...(stored.screenshot
+        ? {
+            screenshot: {
+              mimeType: stored.screenshot.mimeType,
+              uri: "sha256:" + stored.screenshot.sha256,
+              ...(stored.screenshot.width !== undefined
+                ? { width: stored.screenshot.width }
+                : {}),
+              ...(stored.screenshot.height !== undefined
+                ? { height: stored.screenshot.height }
+                : {})
+            }
+          }
+        : {})
+    };
+  }
+
   assertFreshObservation(sessionId: string, observationId?: string): void {
     if (!observationId) throw new Error("A fresh observation_id is required before acting.");
     const session = this.get(sessionId);
@@ -101,6 +158,7 @@ export class SessionManager {
     delete session.observationId;
     this.observations.delete(sessionId);
     this.previousFingerprints.delete(sessionId);
+    this.previousObservations.delete(sessionId);
     return session;
   }
 }

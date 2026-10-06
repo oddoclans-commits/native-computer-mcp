@@ -6,6 +6,7 @@ import { createDefaultAdapter } from "../src/adapters/factory.js";
 import { findAccessibilityNodes } from "../src/core/query.js";
 import { actionSchema } from "../src/mcp/action-schema.js";
 import { verifyObservation } from "../src/core/verification.js";
+import { observationDiff } from "../src/core/diff.js";
 import type { ComputerAdapter, Observation } from "../src/types.js";
 
 test("session rejects stale observations and consumes successful actions", () => {
@@ -173,4 +174,49 @@ test("verification detects semantic/window expectations", () => {
 
   assert.equal(result.status, "confirmed");
   assert.equal(result.checks.every((check) => check.passed), true);
+});
+
+
+test("observation diff reports window, accessibility, and screenshot changes", () => {
+  const previous: Observation = {
+    observationId: "prev",
+    timestamp: new Date().toISOString(),
+    platform: "windows",
+    activeWindow: { id: "1", title: "Editor", appName: "Editor", focused: true },
+    displays: [{ id: "0", bounds: { x: 0, y: 0, width: 100, height: 100 } }],
+    windows: [{ id: "1", title: "Editor", appName: "Editor", focused: true }],
+    accessibility: [{ id: "uia:1", role: "Button", name: "Save" }],
+    screenshot: {
+      mimeType: "image/png",
+      data: Buffer.from("one").toString("base64"),
+      width: 100,
+      height: 100
+    },
+    capabilities: ["ui_automation"]
+  };
+  const current: Observation = {
+    ...previous,
+    observationId: "current",
+    activeWindow: { id: "1", title: "Editor - Notes", appName: "Editor", focused: true },
+    windows: [{ id: "1", title: "Editor - Notes", appName: "Editor", focused: true }],
+    accessibility: [{ id: "uia:1", role: "Button", name: "Publish" }],
+    screenshot: {
+      mimeType: "image/png",
+      data: Buffer.from("two").toString("base64"),
+      width: 100,
+      height: 100
+    }
+  };
+
+  const diff = observationDiff(previous, current);
+  assert.equal(diff.hasPrevious, true);
+  assert.equal(diff.changed, true);
+  assert.equal(diff.activeWindowChanged, true);
+  assert.deepEqual(diff.windows.changedIds, ["1"]);
+  assert.deepEqual(diff.accessibility.changedIds, ["uia:1"]);
+  assert.equal(diff.screenshot.changed, true);
+  assert.ok(diff.changedFields.includes("active_window"));
+  assert.ok(diff.changedFields.includes("windows"));
+  assert.ok(diff.changedFields.includes("accessibility"));
+  assert.ok(diff.changedFields.includes("screenshot"));
 });
