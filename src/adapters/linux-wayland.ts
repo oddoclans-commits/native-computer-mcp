@@ -135,10 +135,9 @@ export class LinuxWaylandAdapter extends BaseComputerAdapter {
   async stop(): Promise<void> {}
 
   private async semanticAct(
-    action: Extract<
-      ActionRequest["action"],
-      { type: "click" | "set_value" | "secondary_action" }
-    > & { targetId: string }
+    action:
+      | (Extract<ActionRequest["action"], { type: "click" }> & { targetId: string })
+      | Extract<ActionRequest["action"], { type: "set_value" | "secondary_action" }>
   ): Promise<ActionResult> {
     if (!action.targetId?.startsWith("atspi:")) {
       throw new Error("AT-SPI semantic actions require an atspi: targetId.");
