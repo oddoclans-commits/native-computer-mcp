@@ -91,7 +91,7 @@ export class MacOSAXAdapter extends BaseComputerAdapter {
             status: "executed",
             verification: "needs_observation",
             nextObservationRequired: true,
-            evidence: [\`native:\${this.name}\`]
+            evidence: [`native:${this.name}`]
           }
         : {
             status: "uncertain",
