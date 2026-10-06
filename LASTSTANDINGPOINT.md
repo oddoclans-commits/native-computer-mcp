@@ -15,6 +15,7 @@ native-computer-mcp is a working OS-agnostic MCP/runtime foundation with:
 - Windows UI Automation discovery and semantic actions
 - Linux X11 native input
 - Linux AT-SPI adapter
+- Linux Wayland adapter with semantic AT-SPI targets and native Wayland input fallbacks
 - Linux window/display discovery
 - semantic target query via `computer_find`
 - GitHub Actions CI for Linux, Windows, and macOS
@@ -53,7 +54,7 @@ UIA primary click preference:
 
 - Windows UIA has not been exercised against a real interactive Windows desktop
   in this environment; CI verifies compilation/parser/assembly availability.
-- Linux currently supports X11 pointer input and AT-SPI semantic accessibility; Wayland pointer input is not implemented.
+- Linux supports X11 pointer input and AT-SPI semantic accessibility, plus a Wayland adapter using AT-SPI, `wtype`, `ydotool`, and `grim` when those capabilities are installed.
 - Accessibility trees now normalize into the universal `AccessibilityNode` contract across native desktop adapters and the browser CDP surface.
 - OCR is not implemented.
 - Browser/CDP surface has direct target listing, raw + normalized accessibility snapshots, state/verify, navigation, find, semantic-query click/type, CSS-selector click/type, and Runtime.evaluate.
