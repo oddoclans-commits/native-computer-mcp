@@ -55,7 +55,7 @@ UIA primary click preference:
 - Linux currently supports X11, not Wayland.
 - Accessibility tree support is Windows-first.
 - OCR is not implemented.
-- Browser/CDP surface has direct target listing, accessibility snapshot, navigation, and Runtime.evaluate; richer browser actions remain future work.
+- Browser/CDP surface has direct target listing, accessibility snapshot, navigation, find, click, type, and Runtime.evaluate.
 - Windows file/folder/save dialogs are now first-class tools.
 - macOS AX adapter is implemented; real desktop permission/runtime testing still requires a macOS user session.
 - Rich post-action verification is still agent-driven via fresh observations.
@@ -63,7 +63,7 @@ UIA primary click preference:
 ## Next engineering order
 
 1. Rich screenshot/state diff helpers.
-2. Browser semantic click/type helpers and browser session persistence.
+2. Browser session persistence and richer browser verification.
 3. Linux AT-SPI richer actions and Wayland bridge.
 4. macOS AX richer actions and screenshot capture.
 5. Trace/artifact retention policy and turn/action evidence IDs.
