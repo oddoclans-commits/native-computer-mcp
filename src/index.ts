@@ -8,6 +8,8 @@ import {
   riskTierSchema,
   safetyModeSchema
 } from "./mcp/action-schema.js";
+import { verificationSpecSchema } from "./mcp/verification-schema.js";
+import { CdpBrowserSurface } from "./surfaces/browser/cdp.js";
 
 const runtime = new ComputerRuntime(createDefaultAdapter());
 
@@ -108,6 +110,22 @@ server.tool(
 );
 
 server.tool(
+  "computer_verify",
+  "Verify the current fresh observation against window/semantic expectations and optionally detect change from the previous observation.",
+  {
+    session_id: z.string().min(1),
+    observation_id: z.string().min(1),
+    expect: verificationSpecSchema
+  },
+  async ({ session_id, observation_id, expect }) => {
+    const result = runtime.verify(session_id, observation_id, expect);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+    };
+  }
+);
+
+server.tool(
   "computer_act",
   "Execute one native action against a fresh observation. Each successful or uncertain action consumes that observation and requires a new observe.",
   {
@@ -154,6 +172,64 @@ server.tool(
       ]
     };
   }
+);
+
+const browser = new CdpBrowserSurface();
+
+server.tool(
+  "browser_status",
+  "Check a local Chromium DevTools Protocol endpoint.",
+  { endpoint: z.string().url().optional() },
+  async ({ endpoint }) => ({
+    content: [{ type: "text", text: JSON.stringify(await browser.status(endpoint), null, 2) }]
+  })
+);
+
+server.tool(
+  "browser_tabs",
+  "List browser tabs/targets from a local CDP endpoint.",
+  { endpoint: z.string().url().optional() },
+  async ({ endpoint }) => ({
+    content: [{ type: "text", text: JSON.stringify(await browser.listTargets(endpoint), null, 2) }]
+  })
+);
+
+server.tool(
+  "browser_snapshot",
+  "Read the accessibility snapshot of a browser target through CDP.",
+  {
+    target_id: z.string().min(1),
+    endpoint: z.string().url().optional()
+  },
+  async ({ target_id, endpoint }) => ({
+    content: [{ type: "text", text: JSON.stringify(await browser.snapshot(target_id, endpoint), null, 2) }]
+  })
+);
+
+server.tool(
+  "browser_navigate",
+  "Navigate a browser target through CDP Page.navigate.",
+  {
+    target_id: z.string().min(1),
+    url: z.string().url(),
+    endpoint: z.string().url().optional()
+  },
+  async ({ target_id, url, endpoint }) => ({
+    content: [{ type: "text", text: JSON.stringify(await browser.navigate(target_id, url, endpoint), null, 2) }]
+  })
+);
+
+server.tool(
+  "browser_evaluate",
+  "Evaluate JavaScript in a browser target through CDP Runtime.evaluate.",
+  {
+    target_id: z.string().min(1),
+    expression: z.string().min(1).max(100_000),
+    endpoint: z.string().url().optional()
+  },
+  async ({ target_id, expression, endpoint }) => ({
+    content: [{ type: "text", text: JSON.stringify(await browser.evaluate(target_id, expression, endpoint), null, 2) }]
+  })
 );
 
 const transport = new StdioServerTransport();
