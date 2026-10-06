@@ -3,7 +3,6 @@ import { SessionManager } from "./session.js";
 import { verifyObservation, type VerificationSpec } from "./verification.js";
 import { FileTraceSink } from "./trace.js";
 import { findAccessibilityNodes, type AccessibilityMatch } from "./query.js";
-import { verifyObservation, type VerificationSpec } from "./verification.js";
 import type {
   ComputerAdapter,
   Observation,
@@ -34,15 +33,22 @@ export class ComputerRuntime {
 
   async start() {
     await this.adapter.start();
-    return this.sessions.create();
+    const session = this.sessions.create();
+
+    await this.trace.record({
+      id: randomUUID(),
+      kind: "session_start",
+      sessionId: session.id,
+      timestamp: new Date().toISOString(),
+      payload: {}
+    }).catch(() => []);
+
+    return session;
   }
 
   async observe(sessionId: string): Promise<Observation> {
     const session = this.sessions.get(sessionId);
-
-    if (!session.active) {
-      throw new Error("Session is not active.");
-    }
+    if (!session.active) throw new Error("Session is not active.");
 
     const observation = await this.adapter.observe();
     this.sessions.recordObservation(sessionId, observation);
@@ -61,78 +67,6 @@ export class ComputerRuntime {
 
     const roots = this.sessions.getAccessibility(sessionId, observationId);
     return findAccessibilityNodes(roots, query, role);
-  }
-
-  verify(
-    sessionId: string,
-    observationId: string,
-    observation: Observation,
-    spec: VerificationSpec = {}
-  ): VerificationResult {
-    const session = this.sessions.get(sessionId);
-    if (!session.active) throw new Error("Session is not active.");
-    this.sessions.assertFreshObservation(sessionId, observationId);
-    return verifyObservation(
-      observation,
-      this.sessions.getPreviousFingerprint(sessionId),
-      spec
-    );
-  }
-
-  async selectFile(
-    sessionId: string,
-    observationId: string,
-    path: string
-  ): Promise<ActionResult> {
-    return this.runDialogAction(sessionId, observationId, (dialogs) =>
-      dialogs.selectFile(path)
-    );
-  }
-
-  async selectFolder(
-    sessionId: string,
-    observationId: string,
-    path: string
-  ): Promise<ActionResult> {
-    return this.runDialogAction(sessionId, observationId, (dialogs) =>
-      dialogs.selectFolder(path)
-    );
-  }
-
-  async setSavePath(
-    sessionId: string,
-    observationId: string,
-    path: string
-  ): Promise<ActionResult> {
-    return this.runDialogAction(sessionId, observationId, (dialogs) =>
-      dialogs.setSavePath(path)
-    );
-  }
-
-  private async runDialogAction(
-    sessionId: string,
-    observationId: string,
-    operation: (dialogs: DialogAdapter) => Promise<ActionResult>
-  ): Promise<ActionResult> {
-    const dialogs = this.adapter.dialogs;
-    if (!dialogs) {
-      return {
-        status: "blocked",
-        verification: "not_checked",
-        nextObservationRequired: false,
-        message: "This platform does not expose a native dialog adapter."
-      };
-    }
-
-    const session = this.sessions.get(sessionId);
-    if (!session.active) throw new Error("Session is not active.");
-    this.sessions.assertFreshObservation(sessionId, observationId);
-
-    const result = await operation(dialogs);
-    if (result.status === "executed" || result.status === "uncertain") {
-      this.sessions.consumeObservation(sessionId);
-    }
-    return result;
   }
 
   verify(
@@ -203,7 +137,7 @@ export class ComputerRuntime {
     this.sessions.assertFreshObservation(sessionId, observationId);
 
     const result = await operation(dialogs);
-    void this.trace.record({
+    await this.trace.record({
       id: randomUUID(),
       kind: "dialog",
       sessionId,
@@ -221,10 +155,7 @@ export class ComputerRuntime {
 
   async act(sessionId: string, request: ActionRequest): Promise<ActionResult> {
     const session = this.sessions.get(sessionId);
-
-    if (!session.active) {
-      throw new Error("Session is not active.");
-    }
+    if (!session.active) throw new Error("Session is not active.");
 
     this.sessions.assertFreshObservation(sessionId, request.observationId);
 
@@ -260,6 +191,7 @@ export class ComputerRuntime {
       timestamp: new Date().toISOString(),
       payload: {}
     }).catch(() => []);
+
     return this.sessions.stop(sessionId);
   }
 }
