@@ -43,6 +43,41 @@ public static class NativeComputer {
     [DllImport("user32.dll")]
     public static extern void keybd_event(byte virtualKey, byte scanCode, uint flags, UIntPtr extraInfo);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT {
+        public uint type;
+        public InputUnion U;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct InputUnion {
+        [FieldOffset(0)]
+        public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEYBDINPUT {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    public static void SendUnicode(char character, bool keyUp) {
+        INPUT input = new INPUT();
+        input.type = 1;
+        input.U.ki.wVk = 0;
+        input.U.ki.wScan = character;
+        input.U.ki.dwFlags = 0x0004 | (keyUp ? 0x0002u : 0u);
+        input.U.ki.time = 0;
+        input.U.ki.dwExtraInfo = UIntPtr.Zero;
+        SendInput(1, new INPUT[] { input }, Marshal.SizeOf(typeof(INPUT)));
+    }
+
     public const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
     public const uint MOUSEEVENTF_LEFTUP   = 0x0004;
     public const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
@@ -164,11 +199,8 @@ function Press-Key([int]$vk, [bool]$up) {
 
 function Type-Text([string]$text) {
   foreach ($char in $text.ToCharArray()) {
-    $code = [int][char]$char
-    [NativeComputer]::keybd_event(0, [byte](($code -shr 8) -band 0xFF), 0x0004, [UIntPtr]::Zero)
-    [NativeComputer]::keybd_event(0, [byte](($code) -band 0xFF), 0x0004, [UIntPtr]::Zero)
-    [NativeComputer]::keybd_event(0, [byte](($code) -shr 8), 0x0004 -bor 0x0002, [UIntPtr]::Zero)
-    [NativeComputer]::keybd_event(0, [byte]($code -band 0xFF), 0x0004 -bor 0x0002, [UIntPtr]::Zero)
+    [NativeComputer]::SendUnicode([char]$char, $false)
+    [NativeComputer]::SendUnicode([char]$char, $true)
   }
 }
 
@@ -184,14 +216,18 @@ function Click-At([int]$x, [int]$y, [string]$button) {
 function Invoke-Action($payload) {
   switch ($payload.type) {
     "click" {
-      Click-At ([int]$payload.point.x) ([int]$payload.point.y) ($payload.button ?? "left")
+      $button = "left"
+      if ($null -ne $payload.button -and $payload.button) { $button = [string]$payload.button }
+      Click-At ([int]$payload.point.x) ([int]$payload.point.y) $button
     }
     "type" {
       Type-Text $payload.text
     }
     "key" {
       $held = @()
-      foreach ($modifier in ($payload.modifiers ?? @())) {
+      $modifiers = @()
+      if ($null -ne $payload.modifiers) { $modifiers = @($payload.modifiers) }
+      foreach ($modifier in $modifiers) {
         $vk = Convert-Key $modifier
         Press-Key $vk $false
         $held += $vk
@@ -207,7 +243,8 @@ function Invoke-Action($payload) {
       }
     }
     "scroll" {
-      $amount = [int]($payload.deltaY ?? 0)
+      $amount = 0
+      if ($null -ne $payload.deltaY) { $amount = [int]$payload.deltaY }
       if ($amount -ne 0) {
         [NativeComputer]::mouse_event([NativeComputer]::MOUSEEVENTF_WHEEL, 0, 0, $amount, [UIntPtr]::Zero)
       }
@@ -216,14 +253,16 @@ function Invoke-Action($payload) {
       [NativeComputer]::SetCursorPos([int]$payload.from.x, [int]$payload.from.y) | Out-Null
       [NativeComputer]::mouse_event([NativeComputer]::MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
       try {
-        Start-Sleep -Milliseconds ([int]($payload.durationMs ?? 250))
+        $duration = 250
+        if ($null -ne $payload.durationMs) { $duration = [int]$payload.durationMs }
+        Start-Sleep -Milliseconds $duration
         [NativeComputer]::SetCursorPos([int]$payload.to.x, [int]$payload.to.y) | Out-Null
       } finally {
         [NativeComputer]::mouse_event([NativeComputer]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
       }
     }
     "activate_window" {
-      $handle = [IntPtr]::new([int64]$payload.windowId)
+      $handle = [IntPtr]([int64]$payload.windowId)
       if (-not [NativeComputer]::SetForegroundWindow($handle)) {
         throw "Could not activate window $($payload.windowId)"
       }
