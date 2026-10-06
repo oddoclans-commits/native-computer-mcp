@@ -50,6 +50,20 @@ def make_node(obj, path, depth=0, max_depth=8):
             "enabled": not state.contains(pyatspi.STATE_TYPE_DEFUNCT),
             "focused": state.contains(pyatspi.STATE_TYPE_FOCUSED),
         }
+
+        state_flags = {
+            "selected": getattr(pyatspi, "STATE_TYPE_SELECTED", None),
+            "checked": getattr(pyatspi, "STATE_TYPE_CHECKED", None),
+            "expanded": getattr(pyatspi, "STATE_TYPE_EXPANDED", None),
+            "editable": getattr(pyatspi, "STATE_TYPE_EDITABLE", None),
+            "readonly": getattr(pyatspi, "STATE_TYPE_READ_ONLY", None),
+        }
+        for key, flag in state_flags.items():
+            if flag is not None:
+                try:
+                    node[key] = state.contains(flag)
+                except Exception:
+                    pass
         if name:
             node["name"] = name
         if value is not None:
@@ -96,11 +110,16 @@ def resolve(path):
 
 def perform_primary(obj):
     action = obj.queryAction()
-    for index in range(action.nActions):
-        name = (action.getName(index) or "").lower()
-        if any(token in name for token in ("click", "press", "activate", "select")):
-            action.doAction(index)
-            return
+    preferred = ("click", "press", "activate", "select", "toggle", "open")
+    for token in preferred:
+        for index in range(action.nActions):
+            name = (action.getName(index) or "").lower()
+            if token in name:
+                action.doAction(index)
+                return
+    if action.nActions:
+        action.doAction(0)
+        return
     raise RuntimeError("AT-SPI target exposes no supported primary action.")
 
 def pointer_click(obj, button):
@@ -134,19 +153,38 @@ def perform_secondary(obj):
     action = obj.queryAction()
     for index in range(action.nActions):
         name = (action.getName(index) or "").lower()
-        if any(token in name for token in ("context", "popup", "menu", "secondary")):
+        if any(token in name for token in ("context", "popup", "menu", "secondary", "show")):
             action.doAction(index)
             return
     pointer_click(obj, "right")
 
 def set_value(obj, value):
     try:
+        value_iface = obj.queryValue()
+        minimum = float(value_iface.minimumValue)
+        maximum = float(value_iface.maximumValue)
+        numeric = float(value)
+        if minimum <= numeric <= maximum:
+            if hasattr(value_iface, "setCurrentValue"):
+                value_iface.setCurrentValue(numeric)
+            elif hasattr(value_iface, "setValue"):
+                value_iface.setValue(numeric)
+            else:
+                raise RuntimeError("AT-SPI Value interface is read-only.")
+            return
+    except (ValueError, TypeError):
+        pass
+    except Exception:
+        pass
+
+    try:
         editable = obj.queryEditableText()
         editable.setTextContents(value)
         return
     except Exception:
         pass
-    raise RuntimeError("AT-SPI target exposes no editable-text interface.")
+
+    raise RuntimeError("AT-SPI target exposes no writable Value or EditableText interface.")
 
 def main(request):
     global node_count
