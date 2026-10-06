@@ -5,7 +5,12 @@ import type { AccessibilityNode, Observation, RuntimeSession } from "../types.js
 interface StoredObservation {
   observationId: string;
   fingerprint: string;
+  platform: Observation["platform"];
+  activeWindow?: Observation["activeWindow"];
+  displays: Observation["displays"];
+  windows: Observation["windows"];
   accessibility: AccessibilityNode[];
+  capabilities: string[];
 }
 
 export class SessionManager {
@@ -38,15 +43,36 @@ export class SessionManager {
     this.observations.set(sessionId, {
       observationId: observation.observationId,
       fingerprint: observationFingerprint(observation),
+      ...(observation.activeWindow ? { activeWindow: structuredClone(observation.activeWindow) } : {}),
+      platform: observation.platform,
+      displays: structuredClone(observation.displays),
+      windows: structuredClone(observation.windows),
       accessibility: observation.accessibility
         ? structuredClone(observation.accessibility)
-        : []
+        : [],
+      capabilities: [...observation.capabilities]
     });
   }
 
   getAccessibility(sessionId: string, observationId: string): AccessibilityNode[] {
+    return structuredClone(this.getObservation(sessionId, observationId).accessibility);
+  }
+
+  getObservation(sessionId: string, observationId: string): Observation {
     this.assertFreshObservation(sessionId, observationId);
-    return structuredClone(this.observations.get(sessionId)?.accessibility ?? []);
+    const stored = this.observations.get(sessionId);
+    if (!stored) throw new Error("Observation is not available.");
+
+    return {
+      observationId: stored.observationId,
+      timestamp: new Date().toISOString(),
+      platform: stored.platform,
+      ...(stored.activeWindow ? { activeWindow: structuredClone(stored.activeWindow) } : {}),
+      displays: structuredClone(stored.displays),
+      windows: structuredClone(stored.windows),
+      accessibility: structuredClone(stored.accessibility),
+      capabilities: [...stored.capabilities]
+    };
   }
 
   getPreviousFingerprint(sessionId: string): string | undefined {
@@ -54,9 +80,7 @@ export class SessionManager {
   }
 
   assertFreshObservation(sessionId: string, observationId?: string): void {
-    if (!observationId) {
-      throw new Error("A fresh observation_id is required before acting.");
-    }
+    if (!observationId) throw new Error("A fresh observation_id is required before acting.");
     const session = this.get(sessionId);
     if (session.observationId !== observationId) {
       throw new Error(
