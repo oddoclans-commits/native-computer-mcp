@@ -5,21 +5,23 @@ const pointSchema = z.object({
   y: z.number().finite()
 });
 
-export const actionSchema = z.discriminatedUnion("type", [
+const clickActionSchema = z.union([
   z.object({
     type: z.literal("click"),
-    point: pointSchema.optional(),
+    point: pointSchema,
     targetId: z.string().min(1).max(512).optional(),
     button: z.enum(["left", "middle", "right"]).optional()
-  }).refine(
-    (value) => value.point !== undefined || value.targetId !== undefined,
-    "click requires either point or targetId"
-  )
   }),
   z.object({
-    type: z.literal("type"),
-    text: z.string().min(0).max(100_000)
-  }),
+    type: z.literal("click"),
+    targetId: z.string().min(1).max(512),
+    button: z.enum(["left", "middle", "right"]).optional()
+  })
+]);
+
+export const actionSchema = z.union([
+  clickActionSchema,
+  z.object({ type: z.literal("type"), text: z.string().min(0).max(100_000) }),
   z.object({
     type: z.literal("key"),
     key: z.string().min(1).max(64),
