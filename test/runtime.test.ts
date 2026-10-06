@@ -80,3 +80,12 @@ test("default adapter is selected from the host OS", () => {
     assert.equal(adapter.platform, "unknown");
   }
 });
+
+
+test("action schema accepts semantic click targets", async () => {
+  const { actionSchema } = await import("../src/mcp/action-schema.js");
+  const parsed = actionSchema.parse({ type: "click", targetId: "uia:42.7" });
+  assert.equal(parsed.type, "click");
+  assert.equal(parsed.targetId, "uia:42.7");
+  assert.throws(() => actionSchema.parse({ type: "click" }));
+});
