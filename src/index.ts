@@ -21,13 +21,15 @@ const server = new McpServer({
 
 server.tool(
   "computer_status",
-  "Return adapter readiness, platform, and capabilities.",
-  {},
-  async () => ({
+  "Return adapter readiness, capabilities, fallbacks, limitations, and runtime safety budgets.",
+  {
+    require: z.array(z.string().min(1).max(128)).max(32).optional()
+  },
+  async ({ require }) => ({
     content: [
       {
         type: "text",
-        text: JSON.stringify(await runtime.status(), null, 2)
+        text: JSON.stringify(await runtime.status(require ?? []), null, 2)
       }
     ]
   })
@@ -238,6 +240,22 @@ server.tool(
       ]
     };
   }
+);
+
+server.tool(
+  "computer_cancel",
+  "Request cancellation of the active native action and release any held input when the adapter exposes those hooks.",
+  {
+    session_id: z.string().min(1)
+  },
+  async ({ session_id }) => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(await runtime.cancel(session_id), null, 2)
+      }
+    ]
+  })
 );
 
 server.tool(
