@@ -136,6 +136,27 @@ test("default adapter is selected from the host OS", () => {
   }
 });
 
+test("Linux factory selects Wayland adapter when a Wayland session is advertised", async () => {
+  if (process.platform !== "linux") return;
+
+  const previousWayland = process.env.WAYLAND_DISPLAY;
+  const previousSession = process.env.XDG_SESSION_TYPE;
+
+  try {
+    process.env.WAYLAND_DISPLAY = "wayland-0";
+    delete process.env.XDG_SESSION_TYPE;
+
+    const adapter = createDefaultAdapter();
+    assert.equal(adapter.name, "linux-wayland-native");
+  } finally {
+    if (previousWayland === undefined) delete process.env.WAYLAND_DISPLAY;
+    else process.env.WAYLAND_DISPLAY = previousWayland;
+
+    if (previousSession === undefined) delete process.env.XDG_SESSION_TYPE;
+    else process.env.XDG_SESSION_TYPE = previousSession;
+  }
+});
+
 
 test("action schema accepts semantic click targets", () => {
   const parsed = actionSchema.parse({ type: "click", targetId: "uia:42.7" });
