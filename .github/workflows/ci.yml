@@ -16,7 +16,7 @@ jobs:
   verify:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -48,7 +48,15 @@ jobs:
           [void][ScriptBlock]::Create((Get-Content -Raw $path))
           Write-Host "PowerShell parser validation passed."
 
+      - name: Validate Linux AT-SPI helper
+        if: runner.os == 'Linux'
+        run: python3 -m py_compile native/linux-atspi.py
+
       - name: Windows UI Automation smoke test
         if: runner.os == 'Windows'
         shell: powershell
         run: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File native/windows-uia-smoke.ps1
+
+      - name: Validate macOS AX helper
+        if: runner.os == 'macOS'
+        run: swiftc -typecheck native/macos-ax.swift
