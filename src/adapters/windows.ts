@@ -37,7 +37,10 @@ export class WindowsAdapter extends BaseComputerAdapter {
         "active_window",
         "window_discovery",
         "display_discovery",
-        "screenshot"
+        "screenshot",
+        "ui_automation",
+        "semantic_targets",
+        "semantic_actions"
       ],
       message: "Windows Win32 native backend is available."
     };
