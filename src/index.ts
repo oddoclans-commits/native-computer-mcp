@@ -261,22 +261,6 @@ server.tool(
 );
 
 server.tool(
-  "computer_cancel",
-  "Request cancellation of the active native action and release any held input when the adapter exposes those hooks.",
-  {
-    session_id: z.string().min(1)
-  },
-  async ({ session_id }) => ({
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(await runtime.cancel(session_id), null, 2)
-      }
-    ]
-  })
-);
-
-server.tool(
   "computer_stop",
   "Stop a persistent computer-use session.",
   {
