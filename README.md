@@ -15,7 +15,7 @@ ANY AGENT
 native-computer-mcp
     |
     +-- Windows adapter
-    +-- macOS adapter
+    +-- richer macOS AX actions beyond the initial semantic/coordinate set
     +-- Linux adapter
 ```
 
@@ -45,7 +45,9 @@ v0.1 currently includes:
 - screenshot delivery as MCP image content
 - Windows native input + window/display discovery + screenshots
 - Windows UIA accessibility tree with `targetId`, `ValuePattern`, invoke/toggle/select, and semantic secondary actions
+- native dialog helpers: select file, select folder, set save path
 - Linux X11 native input + window/display discovery + screenshots
+- Linux AT-SPI semantic accessibility discovery when pyatspi is available
 - explicit action/verification semantics
 - GitHub Actions CI on Linux and Windows
 
