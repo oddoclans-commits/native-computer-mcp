@@ -15,8 +15,9 @@ ANY AGENT
 native-computer-mcp
     |
     +-- Windows adapter
-    +-- richer macOS AX actions beyond the initial semantic/coordinate set
+    +-- macOS AX adapter
     +-- Linux adapter
+    +-- Browser CDP surface
 ```
 
 The core runtime is model-agnostic. It does not contain an LLM or a
@@ -47,6 +48,7 @@ v0.1 currently includes:
 - Windows UIA accessibility tree with `targetId`, `ValuePattern`, invoke/toggle/select, and semantic secondary actions
 - native dialog helpers: select file, select folder, set save path
 - direct CDP browser tools: status, tabs, accessibility snapshot, normalized accessibility tree, state, verify, find, navigate, click, type, evaluate
+- persistent browser sessions with restart-safe session records and detached profile launcher
 - Linux X11 native input + window/display discovery + screenshots
 - Linux AT-SPI semantic accessibility discovery/actions when pyatspi is available, with X11 pointer fallback for secondary/middle-click targets
 - explicit action/verification semantics
@@ -62,6 +64,8 @@ Current limitations:
 - macOS observation captures the main display through the native `screencapture` utility when screen capture permission allows it.
 - Rich diffing compares screenshot fingerprints and semantic/window state; pixel heatmaps are not included yet.
 - Browser state fingerprints are bounded to URL/title/readyState/body text and are intended for lightweight verification, not full DOM archival.
+- Browser session records persist under `.artifacts/browser-sessions/`; they reconnect to a still-running target but do not checkpoint or restore an arbitrary browser process after a crash.
+- Browser launch is intentionally minimal: it starts a Chromium-family process with a persistent `user-data-dir` and loopback CDP endpoint; it does not manage extensions, profiles inside the browser UI, or browser-specific policies.
 
 ## Development
 
