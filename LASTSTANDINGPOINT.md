@@ -14,6 +14,7 @@ native-computer-mcp is a working OS-agnostic MCP/runtime foundation with:
 - Windows native Win32 input
 - Windows UI Automation discovery and semantic actions
 - Linux X11 native input
+- Linux AT-SPI adapter
 - Linux window/display discovery
 - semantic target query via `computer_find`
 - GitHub Actions CI for Linux and Windows
@@ -54,19 +55,18 @@ UIA primary click preference:
 - Linux currently supports X11, not Wayland.
 - Accessibility tree support is Windows-first.
 - OCR is not implemented.
-- Browser/CDP surface is not implemented.
-- File dialogs are not yet first-class protocol tools.
-- macOS adapter is not implemented.
+- Browser/CDP surface has direct target listing, accessibility snapshot, navigation, and Runtime.evaluate; richer browser actions remain future work.
+- Windows file/folder/save dialogs are now first-class tools.
+- macOS AX adapter is implemented; real desktop permission/runtime testing still requires a macOS user session.
 - Rich post-action verification is still agent-driven via fresh observations.
 
 ## Next engineering order
 
-1. Native verification primitives and screenshot/state diff helpers.
-2. Windows dialog/file-picker helpers using UIA.
-3. Browser surface contract and CDP adapter.
-4. Linux AT-SPI accessibility adapter.
-5. macOS Accessibility adapter.
-6. Trace/artifact sink and session evidence.
+1. Rich screenshot/state diff helpers.
+2. Browser semantic click/type helpers and browser session persistence.
+3. Linux AT-SPI richer actions and Wayland bridge.
+4. macOS AX richer actions and screenshot capture.
+5. Trace/artifact retention policy and turn/action evidence IDs.
 7. Broader cross-platform capability negotiation.
 
 ## Design invariant
