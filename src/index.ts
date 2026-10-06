@@ -298,5 +298,46 @@ server.tool(
   })
 );
 
+server.tool(
+  "browser_find",
+  "Find DOM candidates by text/ARIA/name/id using the current browser target.",
+  {
+    target_id: z.string().min(1),
+    query: z.string().min(1).max(512),
+    role: z.string().max(128).optional(),
+    endpoint: z.string().url().optional()
+  },
+  async ({ target_id, query, role, endpoint }) => ({
+    content: [{ type: "text", text: JSON.stringify(await browser.find(target_id, query, role, endpoint), null, 2) }]
+  })
+);
+
+server.tool(
+  "browser_click",
+  "Click a DOM element by CSS selector using the browser CDP surface.",
+  {
+    target_id: z.string().min(1),
+    selector: z.string().min(1).max(2048),
+    endpoint: z.string().url().optional()
+  },
+  async ({ target_id, selector, endpoint }) => ({
+    content: [{ type: "text", text: JSON.stringify(await browser.clickSelector(target_id, selector, endpoint), null, 2) }]
+  })
+);
+
+server.tool(
+  "browser_type",
+  "Type text into a DOM input/contenteditable selected by CSS selector using the browser CDP surface.",
+  {
+    target_id: z.string().min(1),
+    selector: z.string().min(1).max(2048),
+    text: z.string().max(100_000),
+    endpoint: z.string().url().optional()
+  },
+  async ({ target_id, selector, text, endpoint }) => ({
+    content: [{ type: "text", text: JSON.stringify(await browser.typeSelector(target_id, selector, text, endpoint), null, 2) }]
+  })
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
