@@ -66,9 +66,9 @@ export class LinuxX11Adapter extends BaseComputerAdapter {
 
     const [activeWindow, windows, displays, screenshot] = await Promise.all([
       this.getActiveWindow(),
-      this.getWindows(),
-      this.getDisplays(),
-      this.getScreenshot()
+      this.getWindows(status),
+      this.getDisplays(status),
+      this.getScreenshot(status)
     ]);
 
     return {
@@ -207,8 +207,7 @@ export class LinuxX11Adapter extends BaseComputerAdapter {
     }
   }
 
-  private async getWindows(): Promise<WindowInfo[]> {
-    const status = await this.status();
+  private async getWindows(status: Awaited<ReturnType<LinuxX11Adapter["status"]>>): Promise<WindowInfo[]> {
     if (!status.capabilities.includes("window_discovery")) return [];
 
     try {
@@ -222,8 +221,7 @@ export class LinuxX11Adapter extends BaseComputerAdapter {
     }
   }
 
-  private async getDisplays(): Promise<DisplayInfo[]> {
-    const status = await this.status();
+  private async getDisplays(status: Awaited<ReturnType<LinuxX11Adapter["status"]>>): Promise<DisplayInfo[]> {
     if (!status.capabilities.includes("display_discovery")) return [];
 
     try {
@@ -249,8 +247,9 @@ export class LinuxX11Adapter extends BaseComputerAdapter {
     }
   }
 
-  private async getScreenshot(): Promise<Observation["screenshot"] | undefined> {
-    const status = await this.status();
+  private async getScreenshot(
+    status: Awaited<ReturnType<LinuxX11Adapter["status"]>>
+  ): Promise<Observation["screenshot"] | undefined> {
     if (!status.capabilities.includes("screenshot")) return undefined;
 
     try {
