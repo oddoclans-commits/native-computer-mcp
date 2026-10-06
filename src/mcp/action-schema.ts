@@ -8,8 +8,13 @@ const pointSchema = z.object({
 export const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("click"),
-    point: pointSchema,
+    point: pointSchema.optional(),
+    targetId: z.string().min(1).max(512).optional(),
     button: z.enum(["left", "middle", "right"]).optional()
+  }).refine(
+    (value) => value.point !== undefined || value.targetId !== undefined,
+    "click requires either point or targetId"
+  )
   }),
   z.object({
     type: z.literal("type"),
