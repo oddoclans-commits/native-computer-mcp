@@ -9,16 +9,20 @@ An observation contains:
 - platform
 - active window
 - displays
-- accessibility nodes
+- windows
+- optional accessibility nodes
 - optional OCR
-- optional screenshot reference
-- health/capability data
+- optional screenshot
+- capability list
+
+Screenshots are transported to MCP clients as image content rather than
+embedding large base64 payloads inside the textual observation.
 
 ## Action
 
 Actions describe intent, not implementation.
 
-Examples:
+Supported action types:
 
 - click
 - type
@@ -46,19 +50,25 @@ Verification is separate:
 - failed
 - needs_observation
 
-This distinction is intentional: an OS-level click succeeding does not prove
-that the desired application state was reached.
+An OS-level input event is not equivalent to task completion.
 
-## Stale observations
+## Observation freshness
 
-Adapters can reject actions against an old observation.
+A session records the latest observation ID.
 
-The runtime therefore exposes an observation ID and verifies freshness before
-dispatching an action.
+Every mutating action must reference that exact observation ID. After an
+`executed` or `uncertain` action, the observation is consumed and a new
+`computer_observe` is required.
+
+This intentionally creates a cheap control loop:
+
+`observe -> act -> observe -> verify`
+
+Batch actions can be added later without weakening this invariant.
 
 ## Safety
 
-The protocol leaves room for:
+The protocol supports:
 
 - auto
 - ask
@@ -70,4 +80,17 @@ and risk tiers:
 - sensitive
 - dangerous
 
-The initial runtime stores these semantics without forcing a specific UI.
+The initial runtime transports these semantics while keeping the policy UI
+outside the core.
+
+## Adapter boundary
+
+Adapters own native details such as:
+
+- Win32 input APIs
+- X11/Wayland APIs
+- macOS Accessibility
+- OCR engines
+- browser/CDP integration
+
+Those implementations must not leak into the MCP contract.
