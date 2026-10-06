@@ -91,7 +91,7 @@ export class CdpBrowserSurface {
     const targets = await this.listTargets(endpoint);
     const target = targets.find((item) => item.id === targetId);
     if (!target?.webSocketDebuggerUrl) {
-      throw new Error(\`No CDP websocket target found for "\${targetId}".\`);
+      throw new Error(`No CDP websocket target found for "${targetId}".`);
     }
 
     const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -148,7 +148,7 @@ export class CdpBrowserSurface {
     return new Promise<unknown>((resolve, reject) => {
       const timeout = setTimeout(() => {
         connection.pending.delete(id);
-        reject(new Error(\`CDP command timed out: \${method}\`));
+        reject(new Error(`CDP command timed out: ${method}`));
       }, 20_000);
 
       connection.pending.set(id, {
@@ -177,7 +177,7 @@ export class CdpBrowserSurface {
     const response = await fetch(base + path);
 
     if (!response.ok) {
-      throw new Error(\`CDP HTTP \${response.status}: \${response.statusText}\`);
+      throw new Error(`CDP HTTP ${response.status}: ${response.statusText}`);
     }
 
     return (await response.json()) as T;
