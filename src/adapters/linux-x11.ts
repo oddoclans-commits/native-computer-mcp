@@ -241,13 +241,13 @@ export class LinuxX11Adapter extends BaseComputerAdapter {
     if (!status.capabilities.includes("screenshot")) return undefined;
 
     try {
-      const result = await runCommand("import", ["-window", "root", "png:-"], {
+      const result = await runCommand("sh", ["-lc", "import -window root png:- | base64 -w0"], {
         timeoutMs: 10_000
       });
-      if (result.code !== 0 || !result.stdout) return undefined;
+      if (result.code !== 0 || !result.stdout.trim()) return undefined;
 
-      const bytes = Buffer.from(result.stdout, "binary");
-      const data = bytes.toString("base64");
+      const data = result.stdout.trim();
+      const bytes = Buffer.from(data, "base64");
       const hash = createHash("sha256").update(bytes).digest("hex");
 
       if (bytes.length > 8 * 1024 * 1024) return undefined;
