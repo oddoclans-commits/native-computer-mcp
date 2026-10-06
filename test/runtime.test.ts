@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { SessionManager } from "../src/core/session.js";
 import { ComputerRuntime } from "../src/core/runtime.js";
 import { createDefaultAdapter } from "../src/adapters/factory.js";
+import { findAccessibilityNodes } from "../src/core/query.js";
+import { actionSchema } from "../src/mcp/action-schema.js";
 import type { ComputerAdapter, Observation } from "../src/types.js";
 
 test("session rejects stale observations and consumes successful actions", () => {
@@ -70,7 +72,6 @@ test("safety mode blocks sensitive actions without consuming the observation", a
 });
 
 test("accessibility query ranks exact semantic matches first", () => {
-  const { findAccessibilityNodes } = require("../src/core/query.js");
   const matches = findAccessibilityNodes(
     [{ id: "uia:1", role: "Button", name: "Save" }],
     "save"
@@ -128,8 +129,7 @@ test("default adapter is selected from the host OS", () => {
 });
 
 
-test("action schema accepts semantic click targets", async () => {
-  const { actionSchema } = await import("../src/mcp/action-schema.js");
+test("action schema accepts semantic click targets", () => {
   const parsed = actionSchema.parse({ type: "click", targetId: "uia:42.7" });
   assert.equal(parsed.type, "click");
   assert.equal(parsed.targetId, "uia:42.7");
