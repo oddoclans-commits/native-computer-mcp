@@ -56,7 +56,7 @@ UIA primary click preference:
 - Linux currently supports X11 pointer input and AT-SPI semantic accessibility; Wayland pointer input is not implemented.
 - Accessibility trees now normalize into the universal `AccessibilityNode` contract across native desktop adapters and the browser CDP surface.
 - OCR is not implemented.
-- Browser/CDP surface has direct target listing, raw + normalized accessibility snapshots, state/verify, navigation, find, click, type, and Runtime.evaluate.
+- Browser/CDP surface has direct target listing, raw + normalized accessibility snapshots, state/verify, navigation, find, semantic-query click/type, CSS-selector click/type, and Runtime.evaluate.
 - Browser sessions can attach to an existing target or launch a detached Chromium-family process with a persistent user-data directory; session records survive MCP restarts.
 - Windows file/folder/save dialogs are now first-class tools.
 - macOS AX adapter is implemented; real desktop permission/runtime testing still requires a macOS user session.
@@ -67,9 +67,9 @@ UIA primary click preference:
 
 1. Linux AT-SPI richer actions and Wayland bridge.
 2. macOS AX richer actions.
-3. Browser semantic targeting from normalized AX nodes, including target-safe activation.
-4. Trace/artifact retention policy.
-5. Broader cross-platform capability negotiation.
+3. Trace/artifact retention policy.
+4. Broader cross-platform capability negotiation.
+5. Real interactive smoke coverage on Windows/macOS/Linux desktop sessions.
 
 ## Design invariant
 
