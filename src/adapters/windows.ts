@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { BaseComputerAdapter } from "./base.js";
 import { runCommand } from "./command.js";
@@ -112,7 +113,7 @@ export class WindowsAdapter extends BaseComputerAdapter {
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            script.pathname,
+            fileURLToPath(script),
             "-PayloadBase64",
             encoded
           ],
