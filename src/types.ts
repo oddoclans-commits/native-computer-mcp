@@ -78,7 +78,12 @@ export interface Observation {
 }
 
 export type Action =
-  | { type: "click"; point: Point; button?: "left" | "middle" | "right" }
+  | {
+      type: "click";
+      point?: Point;
+      targetId?: string;
+      button?: "left" | "middle" | "right";
+    }
   | { type: "type"; text: string }
   | { type: "key"; key: string; modifiers?: string[] }
   | { type: "scroll"; deltaX?: number; deltaY: number }
