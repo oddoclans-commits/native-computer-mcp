@@ -145,12 +145,18 @@ export class CdpBrowserSurface {
     }
 
     if (expect.textContains !== undefined) {
-      const actual = state.textPreview ?? "";
       const needle = expect.textContains.toLocaleLowerCase();
+      const textResult = await this.evaluate(
+        targetId,
+        "(() => (document.body?.innerText || '').toLocaleLowerCase().includes(" +
+          JSON.stringify(needle) +
+          "))()",
+        endpoint
+      ) as boolean;
       checks.push({
         name: "text_contains",
-        passed: actual.toLocaleLowerCase().includes(needle),
-        message: `body text preview contains requested text: ${actual.toLocaleLowerCase().includes(needle)}`
+        passed: textResult === true,
+        message: `body text contains requested text: ${textResult === true}`
       });
     }
 

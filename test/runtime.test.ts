@@ -221,7 +221,3 @@ test("observation diff reports window, accessibility, and screenshot changes", (
   assert.ok(diff.changedFields.includes("screenshot"));
 });
 
-
-test("browser verification is pure and reports requested state checks", async () => {
-  assert.ok(true);
-});
