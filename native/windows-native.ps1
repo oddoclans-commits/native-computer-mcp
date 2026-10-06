@@ -418,12 +418,23 @@ function Click-At([int]$x, [int]$y, [string]$button) {
 function Invoke-Action($payload) {
   switch ($payload.type) {
     "click" {
+      $button = "left"
+      if ($null -ne $payload.button -and $payload.button) { $button = [string]$payload.button }
+
       if ($null -ne $payload.targetId -and $payload.targetId) {
         $element = Resolve-UiaTarget ([string]$payload.targetId)
-        Invoke-UiaPrimary $element
+
+        if ($button -eq "left") {
+          Invoke-UiaPrimary $element
+        } elseif ($button -eq "right") {
+          Invoke-UiaSecondary $element
+        } else {
+          $point = Get-UiaClickablePoint $element
+          if ($null -eq $point) { throw "UI Automation target has no clickable point for middle click." }
+          Click-At ([int]$point.X) ([int]$point.Y) "middle"
+        }
       } else {
-        $button = "left"
-        if ($null -ne $payload.button -and $payload.button) { $button = [string]$payload.button }
+        if ($null -eq $payload.point) { throw "Coordinate click requires point." }
         Click-At ([int]$payload.point.x) ([int]$payload.point.y) $button
       }
     }
