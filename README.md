@@ -19,25 +19,43 @@ native-computer-mcp
     +-- Linux adapter
 ```
 
-The core runtime is deliberately model-agnostic. It does not contain an
-LLM, browser automation framework, or platform-specific input code.
+The core runtime is model-agnostic. It does not contain an LLM or a
+platform-specific perception model.
 
 ## Runtime contract
 
-The intended lifecycle is:
+The working lifecycle is:
+
+`observe -> act -> observe -> verify`
+
+The broader protocol is designed to support:
 
 `observe -> act -> execute -> artifact -> approval -> resume`
 
-The first implementation slice establishes:
+A successful native input event does not automatically mean the requested task
+state was reached.
 
-- persistent sessions
-- observation IDs and stale-observation protection
-- unified observation/action/result types
-- adapter boundary
-- MCP status/start/observe/act/stop tools
-- explicit verification state
+## Current implementation
 
-Native adapters will be added behind the same interface.
+v0.1 currently includes:
+
+- persistent runtime sessions
+- observation IDs with stale/consumed observation protection
+- strict MCP action schemas
+- screenshot delivery as MCP image content
+- Windows native input + window/display discovery + screenshots
+- Linux X11 native input + window/display discovery + screenshots
+- explicit action/verification semantics
+- GitHub Actions CI on Linux and Windows
+
+Not yet implemented:
+
+- accessibility trees / UI Automation
+- OCR
+- file dialogs
+- browser surface
+- macOS adapter
+- richer post-action verification
 
 ## Development
 
@@ -46,16 +64,17 @@ Requirements:
 - Node.js 20+
 - npm
 
-Install and typecheck:
+Install:
 
 ```bash
 npm install
-npm run typecheck
 ```
 
-Build:
+Typecheck, test, and build:
 
 ```bash
+npm run typecheck
+npm test
 npm run build
 ```
 
@@ -65,7 +84,7 @@ Run over stdio:
 npm start
 ```
 
-## Status
+## Design rule
 
-v0.1 is a protocol/runtime foundation. The default adapter is intentionally
-unavailable until a real native backend is installed.
+The MCP contract must remain OS-agnostic. Platform-specific APIs belong
+strictly inside adapters.
