@@ -44,11 +44,23 @@ func boolAttribute(_ element: AXUIElement, _ name: String) -> Bool? {
     attribute(element, name) as? Bool
 }
 
+func axValue(_ raw: Any?) -> AXValue? {
+    guard let raw else { return nil }
+    let cf = raw as CFTypeRef
+    guard CFGetTypeID(cf) == AXValueGetTypeID() else { return nil }
+    return raw as! AXValue
+}
+
+func axUIElement(_ raw: Any?) -> AXUIElement? {
+    guard let raw else { return nil }
+    let cf = raw as CFTypeRef
+    guard CFGetTypeID(cf) == AXUIElementGetTypeID() else { return nil }
+    return raw as! AXUIElement
+}
+
 func boundsAttribute(_ element: AXUIElement) -> Bounds? {
-    guard let rawValue = attribute(element, kAXPositionAttribute),
-          let rawSizeValue = attribute(element, kAXSizeAttribute),
-          let value = rawValue as? AXValue,
-          let sizeValue = rawSizeValue as? AXValue else {
+    guard let value = axValue(attribute(element, kAXPositionAttribute)),
+          let sizeValue = axValue(attribute(element, kAXSizeAttribute)) else {
         return nil
     }
 
@@ -147,8 +159,7 @@ func axRoot() throws -> AXUIElement {
     let app = try frontmostApplication()
     let root = AXUIElementCreateApplication(app.processIdentifier)
 
-    if let rawWindow = attribute(root, kAXFocusedWindowAttribute),
-       let window = rawWindow as? AXUIElement {
+    if let window = axUIElement(attribute(root, kAXFocusedWindowAttribute)) {
         return window
     }
     return root
