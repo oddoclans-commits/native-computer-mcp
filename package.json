@@ -13,14 +13,16 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test test/*.test.ts"
+    "test": "node --import tsx --test test/runtime.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
   }
