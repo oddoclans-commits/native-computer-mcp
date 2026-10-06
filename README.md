@@ -46,6 +46,7 @@ v0.1 currently includes:
 - Windows native input + window/display discovery + screenshots
 - Windows UIA accessibility tree with `targetId`, `ValuePattern`, invoke/toggle/select, and semantic secondary actions
 - native dialog helpers: select file, select folder, set save path
+- direct CDP browser tools: status, tabs, accessibility snapshot, find, navigate, click, type, evaluate
 - Linux X11 native input + window/display discovery + screenshots
 - Linux AT-SPI semantic accessibility discovery when pyatspi is available
 - explicit action/verification semantics
