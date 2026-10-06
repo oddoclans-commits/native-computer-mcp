@@ -68,6 +68,8 @@ export interface Observation {
     mimeType: string;
     data?: string;
     uri?: string;
+    width?: number;
+    height?: number;
   };
   capabilities: string[];
 }
@@ -86,6 +88,7 @@ export interface ActionRequest {
   observationId?: string;
   action: Action;
   risk?: RiskTier;
+  safetyMode?: SafetyMode;
 }
 
 export interface ActionResult {
@@ -96,16 +99,18 @@ export interface ActionResult {
   evidence?: string[];
 }
 
+export interface AdapterStatus {
+  ready: boolean;
+  capabilities: string[];
+  message?: string;
+  details?: Record<string, unknown>;
+}
+
 export interface ComputerAdapter {
   readonly platform: Platform;
   readonly name: string;
 
-  status(): Promise<{
-    ready: boolean;
-    capabilities: string[];
-    message?: string;
-  }>;
-
+  status(): Promise<AdapterStatus>;
   start(): Promise<void>;
   observe(): Promise<Observation>;
   act(request: ActionRequest): Promise<ActionResult>;
