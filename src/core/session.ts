@@ -39,14 +39,20 @@ export class SessionManager {
 
     if (session.observationId !== observationId) {
       throw new Error(
-        "The observation is stale or belongs to another session. Observe again before acting."
+        "The observation is stale, already consumed, or belongs to another session. Observe again before acting."
       );
     }
+  }
+
+  consumeObservation(sessionId: string): void {
+    const session = this.get(sessionId);
+    delete session.observationId;
   }
 
   stop(sessionId: string): RuntimeSession {
     const session = this.get(sessionId);
     session.active = false;
+    delete session.observationId;
     return session;
   }
 }
