@@ -118,6 +118,9 @@ func makeNode(_ element: AXUIElement, path: [Int], depth: Int, maxDepth: Int = 8
 
     if let value = stringAttribute(element, kAXValueAttribute) {
         node["value"] = value
+    } else if let rawValue = attribute(element, kAXValueAttribute),
+              let numeric = rawValue as? NSNumber {
+        node["value"] = numeric.stringValue
     }
 
     if let bounds = boundsAttribute(element) {
@@ -264,18 +267,28 @@ func setValue(_ element: AXUIElement, _ value: String) throws {
         )
     }
 
-    let error = AXUIElementSetAttributeValue(
+    let stringError = AXUIElementSetAttributeValue(
         element,
         kAXValueAttribute as CFString,
         value as CFTypeRef
     )
-    if error != .success {
-        throw NSError(
-            domain: "native-computer-mcp",
-            code: Int(error.rawValue),
-            userInfo: [NSLocalizedDescriptionKey: "AX value update failed."]
+    if stringError == .success { return }
+
+    if let numeric = Double(value) {
+        let number = NSNumber(value: numeric)
+        let numericError = AXUIElementSetAttributeValue(
+            element,
+            kAXValueAttribute as CFString,
+            number as CFTypeRef
         )
+        if numericError == .success { return }
     }
+
+    throw NSError(
+        domain: "native-computer-mcp",
+        code: Int(stringError.rawValue),
+        userInfo: [NSLocalizedDescriptionKey: "AX value update failed."]
+    )
 }
 
 func modifierKeyCode(_ value: String) -> CGKeyCode? {
