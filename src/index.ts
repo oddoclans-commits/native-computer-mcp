@@ -219,7 +219,7 @@ server.tool(
     risk: riskTierSchema.optional(),
     safety_mode: safetyModeSchema.optional()
   },
-  async ({ session_id, observation_id, action, risk, safety_mode }) => {
+  async ({ session_id, observation_id, turn_id, action, risk, safety_mode }) => {
     const result = await runtime.act(session_id, {
       observationId: observation_id,
       ...(turn_id ? { turnId: turn_id } : {}),
