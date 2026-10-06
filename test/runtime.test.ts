@@ -7,7 +7,11 @@ import { findAccessibilityNodes } from "../src/core/query.js";
 import { actionSchema } from "../src/mcp/action-schema.js";
 import { verifyObservation } from "../src/core/verification.js";
 import { observationDiff } from "../src/core/diff.js";
-import type { ComputerAdapter, Observation } from "../src/types.js";
+import type { BrowserTarget, ComputerAdapter, Observation } from "../src/types.js";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { BrowserSessionStore } from "../src/surfaces/browser/runtime.js";
 
 test("session rejects stale observations and consumes successful actions", () => {
   const sessions = new SessionManager();
@@ -312,4 +316,41 @@ test("browser AX normalization produces the universal accessibility node contrac
   assert.equal(roots[0]?.children?.[0]?.automationId, "42");
   assert.equal(roots[0]?.children?.[0]?.focused, true);
   assert.equal(roots[0]?.children?.[0]?.enabled, true);
+});
+
+
+test("browser sessions persist across store instances", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "native-computer-mcp-"));
+  const filePath = join(directory, "sessions.json");
+
+  try {
+    const target: BrowserTarget = {
+      id: "page-42",
+      type: "page",
+      title: "Example",
+      url: "https://example.com"
+    };
+
+    const first = new BrowserSessionStore(filePath);
+    const created = await first.create({
+      targetId: target.id,
+      endpoint: "http://127.0.0.1:9222",
+      target,
+      userDataDir: "/tmp/browser-profile-01"
+    });
+
+    const second = new BrowserSessionStore(filePath);
+    const restored = await second.get(created.id);
+
+    assert.equal(restored?.id, created.id);
+    assert.equal(restored?.targetId, "page-42");
+    assert.equal(restored?.endpoint, "http://127.0.0.1:9222");
+    assert.equal(restored?.userDataDir, "/tmp/browser-profile-01");
+
+    const removed = await second.remove(created.id);
+    assert.equal(removed?.id, created.id);
+    assert.equal(await second.get(created.id), undefined);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
