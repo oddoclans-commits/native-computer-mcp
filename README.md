@@ -58,6 +58,7 @@ Current limitations:
 - Wayland input is not implemented.
 - Browser CDP is an independent first-class surface; its verification contract is separate from the desktop observation lifecycle.
 - macOS requires Accessibility permission and a real interactive user session for runtime validation.
+- macOS observation can capture the main display as PNG through Core Graphics/Image I/O when screen capture permission allows it.
 - Rich diffing compares screenshot fingerprints and semantic/window state; pixel heatmaps are not included yet.
 - Browser state fingerprints are bounded to URL/title/readyState/body text and are intended for lightweight verification, not full DOM archival.
 

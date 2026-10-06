@@ -11,6 +11,7 @@ interface AxResponse {
   message?: string;
   accessibility?: Observation["accessibility"];
   activeWindow?: Observation["activeWindow"];
+  screenshot?: Observation["screenshot"];
   capabilities?: string[];
 }
 
@@ -36,7 +37,8 @@ export class MacOSAXAdapter extends BaseComputerAdapter {
               "ui_automation",
               "semantic_targets",
               "semantic_actions",
-              "accessibility_ax"
+              "accessibility_ax",
+              "screenshot"
             ]
           : [],
       message:
@@ -79,6 +81,7 @@ export class MacOSAXAdapter extends BaseComputerAdapter {
       displays: [],
       windows: [],
       ...(response.accessibility ? { accessibility: response.accessibility } : {}),
+      ...(response.screenshot ? { screenshot: response.screenshot } : {}),
       capabilities: response.capabilities ?? []
     };
   }
