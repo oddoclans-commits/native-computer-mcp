@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import WebSocket from "ws";
+import { findAccessibilityNodes } from "../../core/query.js";
 import type { AccessibilityNode, BrowserTarget } from "../../types.js";
 
 interface CdpMessage {
@@ -216,6 +217,95 @@ export class CdpBrowserSurface {
     return this.evaluate(targetId, expression, endpoint);
   }
 
+  async clickAccessible(
+    targetId: string,
+    query: string,
+    role?: string,
+    endpoint = "http://127.0.0.1:9222"
+  ) {
+    const tree = await this.accessibility(targetId, endpoint);
+    const matches = findAccessibilityNodes(tree, query, role);
+    const candidate = matches.find((match) => match.enabled !== false);
+    if (!candidate) {
+      throw new Error("No enabled browser accessibility target matched \"" + query + "\".");
+    }
+    if (!candidate.automationId || !/^\\d+$/.test(candidate.automationId)) {
+      throw new Error("Browser accessibility target \"" + candidate.targetId + "\" has no backend DOM node id.");
+    }
+
+    const result = await this.callBackendNode(
+      targetId,
+      Number(candidate.automationId),
+      `function() {
+        this.scrollIntoView({block:"center",inline:"center"});
+        if (typeof this.click !== "function") {
+          throw new Error("Resolved browser accessibility target is not clickable.");
+        }
+        this.click();
+        return {clicked:true};
+      }`,
+      [],
+      endpoint
+    );
+
+    return {
+      ...result,
+      targetId: candidate.targetId,
+      query,
+      ...(role ? { role } : {}),
+      score: candidate.score
+    };
+  }
+
+  async typeAccessible(
+    targetId: string,
+    query: string,
+    value: string,
+    role?: string,
+    endpoint = "http://127.0.0.1:9222"
+  ) {
+    const tree = await this.accessibility(targetId, endpoint);
+    const matches = findAccessibilityNodes(tree, query, role);
+    const candidate = matches.find((match) => match.enabled !== false);
+    if (!candidate) {
+      throw new Error("No enabled browser accessibility target matched \"" + query + "\".");
+    }
+    if (!candidate.automationId || !/^\\d+$/.test(candidate.automationId)) {
+      throw new Error("Browser accessibility target \"" + candidate.targetId + "\" has no backend DOM node id.");
+    }
+
+    const result = await this.callBackendNode(
+      targetId,
+      Number(candidate.automationId),
+      `function(value) {
+        this.scrollIntoView({block:"center",inline:"center"});
+        if ("value" in this) {
+          this.focus();
+          this.value = value;
+          this.dispatchEvent(new Event("input",{bubbles:true}));
+          this.dispatchEvent(new Event("change",{bubbles:true}));
+        } else if (this.isContentEditable) {
+          this.focus();
+          this.textContent = value;
+          this.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"insertText",data:value}));
+        } else {
+          throw new Error("Resolved browser accessibility target is not editable.");
+        }
+        return {typed:true,length:value.length};
+      }`,
+      [{ value: value }],
+      endpoint
+    );
+
+    return {
+      ...result,
+      targetId: candidate.targetId,
+      query,
+      ...(role ? { role } : {}),
+      score: candidate.score
+    };
+  }
+
   async clickSelector(targetId: string, selector: string, endpoint = "http://127.0.0.1:9222") {
     const expression =
       "(() => {" +
@@ -317,6 +407,29 @@ export class CdpBrowserSurface {
 
     this.connections.set(targetId, connection);
     return connection;
+  }
+
+  private async callBackendNode(
+    targetId: string,
+    backendNodeId: number,
+    functionDeclaration: string,
+    argumentsList: Array<{ value: string }> = [],
+    endpoint = "http://127.0.0.1:9222"
+  ) {
+    const connection = await this.connectionFor(targetId, endpoint);
+    const resolved = await this.call(connection, "DOM.resolveNode", { backendNodeId }) as {
+      object?: { objectId?: string };
+    };
+    const objectId = resolved.object?.objectId;
+    if (!objectId) throw new Error("CDP did not resolve the backend DOM node.");
+
+    return this.call(connection, "Runtime.callFunctionOn", {
+      objectId,
+      functionDeclaration,
+      arguments: argumentsList,
+      returnByValue: true,
+      awaitPromise: true
+    }) as Promise<Record<string, unknown>>;
   }
 
   private call(connection: CdpConnection, method: string, params: Record<string, unknown>) {
