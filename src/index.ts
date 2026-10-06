@@ -81,6 +81,33 @@ server.tool(
 );
 
 server.tool(
+  "computer_find",
+  "Find semantic accessibility targets in the latest fresh observation without consuming it.",
+  {
+    session_id: z.string().min(1),
+    observation_id: z.string().min(1),
+    query: z.string().min(1).max(512),
+    role: z.string().min(1).max(128).optional()
+  },
+  async ({ session_id, observation_id, query, role }) => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          {
+            query,
+            ...(role ? { role } : {}),
+            matches: runtime.find(session_id, observation_id, query, role)
+          },
+          null,
+          2
+        )
+      }
+    ]
+  })
+);
+
+server.tool(
   "computer_act",
   "Execute one native action against a fresh observation. Each successful or uncertain action consumes that observation and requires a new observe.",
   {
