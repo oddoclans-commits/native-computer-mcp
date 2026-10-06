@@ -124,6 +124,8 @@ test("default adapter is selected from the host OS", () => {
     assert.equal(adapter.platform, "windows");
   } else if (process.platform === "linux") {
     assert.equal(adapter.platform, "linux");
+  } else if (process.platform === "darwin") {
+    assert.equal(adapter.platform, "macos");
   } else {
     assert.equal(adapter.platform, "unknown");
   }
