@@ -2,6 +2,9 @@
 import base64
 import json
 import sys
+import os
+import shutil
+import subprocess
 
 try:
     import pyatspi
@@ -100,8 +103,41 @@ def perform_primary(obj):
             return
     raise RuntimeError("AT-SPI target exposes no supported primary action.")
 
+def pointer_click(obj, button):
+    if not os.environ.get("DISPLAY"):
+        raise RuntimeError("Native pointer fallback requires DISPLAY/X11.")
+    tool = shutil.which("xdotool")
+    if not tool:
+        raise RuntimeError("Native pointer fallback requires xdotool.")
+    rect = rect_for(obj)
+    if not rect:
+        raise RuntimeError("AT-SPI target has no usable bounds.")
+    x = rect["x"] + max(0, rect["width"] // 2)
+    y = rect["y"] + max(0, rect["height"] // 2)
+    button_id = {"left": "1", "middle": "2", "right": "3"}[button]
+    subprocess.run(
+        [tool, "mousemove", "--sync", str(x), str(y)],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    subprocess.run(
+        [tool, "click", button_id],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
 def perform_secondary(obj):
-    raise RuntimeError("AT-SPI secondary action needs a native pointer backend.")
+    action = obj.queryAction()
+    for index in range(action.nActions):
+        name = (action.getName(index) or "").lower()
+        if any(token in name for token in ("context", "popup", "menu", "secondary")):
+            action.doAction(index)
+            return
+    pointer_click(obj, "right")
 
 def set_value(obj, value):
     try:
@@ -135,7 +171,11 @@ def main(request):
         obj = resolve(path)
 
         if action.get("type") == "click":
-            perform_primary(obj)
+            button = action.get("button", "left")
+            if button == "left":
+                perform_primary(obj)
+            else:
+                pointer_click(obj, button)
         elif action.get("type") == "secondary_action":
             perform_secondary(obj)
         elif action.get("type") == "set_value":

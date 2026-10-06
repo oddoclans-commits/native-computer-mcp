@@ -48,7 +48,7 @@ v0.1 currently includes:
 - native dialog helpers: select file, select folder, set save path
 - direct CDP browser tools: status, tabs, accessibility snapshot, state, verify, find, navigate, click, type, evaluate
 - Linux X11 native input + window/display discovery + screenshots
-- Linux AT-SPI semantic accessibility discovery when pyatspi is available
+- Linux AT-SPI semantic accessibility discovery/actions when pyatspi is available, with X11 pointer fallback for secondary/middle-click targets
 - explicit action/verification semantics
 - GitHub Actions CI on Linux, Windows, and macOS
 

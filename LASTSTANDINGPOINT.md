@@ -52,7 +52,7 @@ UIA primary click preference:
 
 - Windows UIA has not been exercised against a real interactive Windows desktop
   in this environment; CI verifies compilation/parser/assembly availability.
-- Linux currently supports X11, not Wayland.
+- Linux currently supports X11 pointer input and AT-SPI semantic accessibility; Wayland pointer input is not implemented.
 - Accessibility tree support is Windows-first.
 - OCR is not implemented.
 - Browser/CDP surface has direct target listing, accessibility snapshot, state/verify, navigation, find, click, type, and Runtime.evaluate.
