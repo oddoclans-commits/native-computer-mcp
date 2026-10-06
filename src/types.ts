@@ -154,6 +154,16 @@ export interface AdapterStatus {
   details?: Record<string, unknown>;
 }
 
+export interface CapabilityNegotiation {
+  requested: string[];
+  available: string[];
+  supported: string[];
+  missing: string[];
+  preferred: Record<string, string>;
+  fallbacks: Record<string, string[]>;
+  limitations: string[];
+}
+
 export interface DialogAdapter {
   selectFile(path: string): Promise<ActionResult>;
   selectFolder(path: string): Promise<ActionResult>;
@@ -175,6 +185,8 @@ export interface ComputerAdapter {
   start(): Promise<void>;
   observe(): Promise<Observation>;
   act(request: ActionRequest): Promise<ActionResult>;
+  interrupt?(): Promise<void>;
+  releaseInputs?(): Promise<void>;
   stop(): Promise<void>;
   dialogs?: DialogAdapter;
 }
