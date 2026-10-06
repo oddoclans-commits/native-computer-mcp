@@ -17,6 +17,8 @@ export interface TraceEvent {
   sessionId: string;
   timestamp: string;
   observationId?: string;
+  turnId?: string;
+  actionId?: string;
   payload: Record<string, unknown>;
   artifacts?: string[];
 }
@@ -111,14 +113,17 @@ export class FileTraceSink {
   async action(
     sessionId: string,
     request: ActionRequest,
-    result: ActionResult
+    result: ActionResult,
+    actionId = randomUUID()
   ): Promise<string[]> {
     return this.record({
-      id: randomUUID(),
+      id: actionId,
       kind: "act",
       sessionId,
       timestamp: new Date().toISOString(),
       observationId: request.observationId,
+      ...(request.turnId ? { turnId: request.turnId } : {}),
+      actionId,
       payload: {
         action: redactAction(request),
         result

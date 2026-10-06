@@ -214,6 +214,7 @@ server.tool(
   {
     session_id: z.string().min(1),
     observation_id: z.string().min(1),
+    turn_id: z.string().min(1).max(256).optional(),
     action: actionSchema,
     risk: riskTierSchema.optional(),
     safety_mode: safetyModeSchema.optional()
@@ -221,6 +222,7 @@ server.tool(
   async ({ session_id, observation_id, action, risk, safety_mode }) => {
     const result = await runtime.act(session_id, {
       observationId: observation_id,
+      ...(turn_id ? { turnId: turn_id } : {}),
       action,
       ...(risk ? { risk } : {}),
       ...(safety_mode ? { safetyMode: safety_mode } : {})

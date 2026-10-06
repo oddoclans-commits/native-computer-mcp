@@ -186,13 +186,18 @@ export class ComputerRuntime {
       ...request,
       risk: safety.risk
     });
-    await this.trace.action(sessionId, request, result).catch(() => []);
+    const actionId = randomUUID();
+    await this.trace.action(sessionId, request, result, actionId).catch(() => []);
 
     if (result.status === "executed" || result.status === "uncertain") {
       this.sessions.consumeObservation(sessionId);
     }
 
-    return result;
+    return {
+      ...result,
+      traceId: actionId,
+      evidence: [...(result.evidence ?? []), "trace:" + actionId]
+    };
   }
 
   async stop(sessionId: string) {

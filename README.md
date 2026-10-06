@@ -50,6 +50,7 @@ v0.1 currently includes:
 - Linux X11 native input + window/display discovery + screenshots
 - Linux AT-SPI semantic accessibility discovery/actions when pyatspi is available, with X11 pointer fallback for secondary/middle-click targets
 - explicit action/verification semantics
+- trace IDs on action results (`trace:<uuid>`) with optional agent-supplied `turn_id`
 - GitHub Actions CI on Linux, Windows, and macOS
 
 Current limitations:

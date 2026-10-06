@@ -132,6 +132,7 @@ export type Action =
 
 export interface ActionRequest {
   observationId?: string;
+  turnId?: string;
   action: Action;
   risk?: RiskTier;
   safetyMode?: SafetyMode;
@@ -143,6 +144,7 @@ export interface ActionResult {
   message?: string;
   nextObservationRequired?: boolean;
   evidence?: string[];
+  traceId?: string;
 }
 
 export interface AdapterStatus {
