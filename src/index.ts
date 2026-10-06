@@ -2,9 +2,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { ComputerRuntime } from "./core/runtime.js";
-import { UnavailableAdapter } from "./adapters/unavailable.js";
+import { createDefaultAdapter } from "./adapters/factory.js";
+import {
+  actionSchema,
+  riskTierSchema,
+  safetyModeSchema
+} from "./mcp/action-schema.js";
 
-const runtime = new ComputerRuntime(new UnavailableAdapter());
+const runtime = new ComputerRuntime(createDefaultAdapter());
 
 const server = new McpServer({
   name: "native-computer-mcp",
@@ -45,36 +50,52 @@ server.tool(
 
 server.tool(
   "computer_observe",
-  "Capture a fresh observation for an active session.",
+  "Capture a fresh observation for an active session. The observation_id is required for the next action.",
   {
-    session_id: z.string()
+    session_id: z.string().min(1)
   },
   async ({ session_id }) => {
     const observation = await runtime.observe(session_id);
+    const { screenshot, ...metadata } = observation;
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(observation, null, 2)
-        }
-      ]
-    };
+    const content: Array<
+      | { type: "text"; text: string }
+      | { type: "image"; data: string; mimeType: string }
+    > = [
+      {
+        type: "text",
+        text: JSON.stringify(metadata, null, 2)
+      }
+    ];
+
+    if (screenshot?.data) {
+      content.push({
+        type: "image",
+        data: screenshot.data,
+        mimeType: screenshot.mimeType
+      });
+    }
+
+    return { content };
   }
 );
 
 server.tool(
   "computer_act",
-  "Execute one action against the current fresh observation.",
+  "Execute one native action against a fresh observation. Each successful or uncertain action consumes that observation and requires a new observe.",
   {
-    session_id: z.string(),
-    observation_id: z.string(),
-    action: z.record(z.unknown())
+    session_id: z.string().min(1),
+    observation_id: z.string().min(1),
+    action: actionSchema,
+    risk: riskTierSchema.optional(),
+    safety_mode: safetyModeSchema.optional()
   },
-  async ({ session_id, observation_id, action }) => {
+  async ({ session_id, observation_id, action, risk, safety_mode }) => {
     const result = await runtime.act(session_id, {
       observationId: observation_id,
-      action: action as never
+      action,
+      ...(risk ? { risk } : {}),
+      ...(safety_mode ? { safetyMode: safety_mode } : {})
     });
 
     return {
@@ -92,7 +113,7 @@ server.tool(
   "computer_stop",
   "Stop a persistent computer-use session.",
   {
-    session_id: z.string()
+    session_id: z.string().min(1)
   },
   async ({ session_id }) => {
     const session = await runtime.stop(session_id);
