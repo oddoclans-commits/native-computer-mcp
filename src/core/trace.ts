@@ -31,8 +31,9 @@ export class FileArtifactSink implements ArtifactSink {
 
   private async write(path: string, data: string | Buffer): Promise<string> {
     const relative = path
-      .replace(/^[/\\\\]+/, "")
-      .replace(/\\.\\.(?:[/\\\\]|$)/g, "");
+      .split(/[/\\\\]+/)
+      .filter((part) => part && part !== "." && part !== "..")
+      .join("/");
     const target = join(this.root, relative);
     await mkdir(join(target, ".."), { recursive: true });
     await writeFile(target, data);
@@ -99,7 +100,7 @@ export class FileTraceSink {
         join(
           "computer-trace",
           sessionId,
-          String(observation.timestamp).replace(/[:.]/g, "-") + "-observe.json"
+          String(observation.timestamp).replace(/[:.]/g, "-") + "-" + event.id + "-observe.json"
         ),
         JSON.stringify(event, null, 2)
       ),
