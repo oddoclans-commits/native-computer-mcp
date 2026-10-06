@@ -10,6 +10,7 @@ import {
 } from "./mcp/action-schema.js";
 import { verificationSpecSchema } from "./mcp/verification-schema.js";
 import { CdpBrowserSurface } from "./surfaces/browser/cdp.js";
+import { BrowserLauncher, BrowserSessionStore } from "./surfaces/browser/runtime.js";
 
 const runtime = new ComputerRuntime(createDefaultAdapter());
 
@@ -260,6 +261,40 @@ server.tool(
 );
 
 const browser = new CdpBrowserSurface();
+const browserSessions = new BrowserSessionStore();
+const browserLauncher = new BrowserLauncher();
+
+const browserTargetFields = {
+  target_id: z.string().min(1).max(256).optional(),
+  session_id: z.string().min(1).max(256).optional(),
+  endpoint: z.string().url().optional()
+};
+
+const browserTargetSchema = (extra: z.ZodRawShape = {}) =>
+  z.object({
+    ...browserTargetFields,
+    ...extra
+  }).refine(
+    (input) => Boolean(input.target_id) !== Boolean(input.session_id),
+    "Provide exactly one of target_id or session_id."
+  );
+
+async function resolveBrowserTarget(input: {
+  target_id?: string;
+  session_id?: string;
+  endpoint?: string;
+}): Promise<{ targetId: string; endpoint: string }> {
+  if (input.session_id) {
+    const session = await browserSessions.get(input.session_id);
+    if (!session) throw new Error("Unknown browser session: " + input.session_id);
+    return { targetId: session.targetId, endpoint: session.endpoint };
+  }
+  if (!input.target_id) throw new Error("A browser target or session is required.");
+  return {
+    targetId: input.target_id,
+    endpoint: input.endpoint ?? "http://127.0.0.1:9222"
+  };
+}
 
 server.tool(
   "browser_status",
@@ -280,139 +315,209 @@ server.tool(
 );
 
 server.tool(
-  "browser_snapshot",
-  "Read the accessibility snapshot of a browser target through CDP.",
+  "browser_session_start",
+  "Attach a persistent browser session to an existing target, or launch a detached Chromium profile and attach to its first page target.",
   {
-    target_id: z.string().min(1),
-    endpoint: z.string().url().optional()
+    target_id: z.string().min(1).max(256).optional(),
+    endpoint: z.string().url().optional(),
+    user_data_dir: z.string().min(1).max(4096).optional(),
+    executable: z.string().min(1).max(4096).optional(),
+    url: z.string().url().optional()
   },
-  async ({ target_id, endpoint }) => ({
-    content: [{ type: "text", text: JSON.stringify(await browser.snapshot(target_id, endpoint), null, 2) }]
-  })
+  async ({ target_id, endpoint, user_data_dir, executable, url }) => {
+    const sessionEndpoint = endpoint ?? "http://127.0.0.1:9222";
+    let launch;
+
+    if (!target_id) {
+      if (!user_data_dir) {
+        throw new Error("user_data_dir is required when target_id is not provided.");
+      }
+      launch = await browserLauncher.launch({
+        endpoint: sessionEndpoint,
+        userDataDir: user_data_dir,
+        ...(executable ? { executable } : {}),
+        ...(url ? { url } : {})
+      });
+    }
+
+    const targets = await browser.listTargets(sessionEndpoint);
+    const target = target_id
+      ? targets.find((item) => item.id === target_id)
+      : targets.find((item) => item.type === "page");
+
+    if (!target) {
+      throw new Error(target_id
+        ? "Browser target not found: " + target_id
+        : "No browser page target is available at the requested CDP endpoint.");
+    }
+
+    const session = await browserSessions.create({
+      targetId: target.id,
+      endpoint: sessionEndpoint,
+      target,
+      ...(user_data_dir ? { userDataDir: user_data_dir } : {})
+    });
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ session, ...(launch ? { launch } : {}) }, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "browser_session_stop",
+  "Detach and forget a persistent browser session without closing the browser process.",
+  { session_id: z.string().min(1).max(256) },
+  async ({ session_id }) => {
+    const session = await browserSessions.remove(session_id);
+    if (!session) throw new Error("Unknown browser session: " + session_id);
+    await browser.disconnect(session.targetId);
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ stopped: true, session }, null, 2)
+      }]
+    };
+  }
+);
+
+server.tool(
+  "browser_snapshot",
+  "Read the raw accessibility snapshot of a browser target through CDP.",
+  browserTargetSchema(),
+  async ({ target_id, session_id, endpoint }) => {
+    const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    return {
+      content: [{ type: "text", text: JSON.stringify(await browser.snapshot(target.targetId, target.endpoint), null, 2) }]
+    };
+  }
 );
 
 server.tool(
   "browser_accessibility",
   "Return a normalized accessibility tree using the same AccessibilityNode contract as native desktop adapters.",
-  {
-    target_id: z.string().min(1),
-    endpoint: z.string().url().optional()
-  },
-  async ({ target_id, endpoint }) => ({
-    content: [{
-      type: "text",
-      text: JSON.stringify(await browser.accessibility(target_id, endpoint), null, 2)
-    }]
-  })
+  browserTargetSchema(),
+  async ({ target_id, session_id, endpoint }) => {
+    const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify(await browser.accessibility(target.targetId, target.endpoint), null, 2)
+      }]
+    };
+  }
 );
 
 server.tool(
   "browser_navigate",
   "Navigate a browser target through CDP Page.navigate.",
-  {
-    target_id: z.string().min(1),
-    url: z.string().url(),
-    endpoint: z.string().url().optional()
-  },
-  async ({ target_id, url, endpoint }) => ({
-    content: [{ type: "text", text: JSON.stringify(await browser.navigate(target_id, url, endpoint), null, 2) }]
-  })
+  browserTargetSchema({ url: z.string().url() }),
+  async ({ target_id, session_id, endpoint, url }) => {
+    const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    return {
+      content: [{ type: "text", text: JSON.stringify(await browser.navigate(target.targetId, url, target.endpoint), null, 2) }]
+    };
+  }
 );
 
 server.tool(
   "browser_state",
   "Read current browser URL, title, readyState, and a bounded body-text fingerprint.",
-  {
-    target_id: z.string().min(1),
-    endpoint: z.string().url().optional()
-  },
-  async ({ target_id, endpoint }) => ({
-    content: [{ type: "text", text: JSON.stringify(await browser.state(target_id, endpoint), null, 2) }]
-  })
+  browserTargetSchema(),
+  async ({ target_id, session_id, endpoint }) => {
+    const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    return {
+      content: [{ type: "text", text: JSON.stringify(await browser.state(target.targetId, target.endpoint), null, 2) }]
+    };
+  }
 );
 
 server.tool(
   "browser_verify",
   "Verify current browser URL, title, text, and readyState without consuming a desktop observation.",
-  {
-    target_id: z.string().min(1),
-    endpoint: z.string().url().optional(),
+  browserTargetSchema({
     expect: z.object({
       url_contains: z.string().max(4096).optional(),
       title_contains: z.string().max(1024).optional(),
       text_contains: z.string().max(4096).optional(),
       ready_state_equals: z.enum(["loading", "interactive", "complete"]).optional()
     })
-  },
-  async ({ target_id, endpoint, expect }) => ({
-    content: [{
-      type: "text",
-      text: JSON.stringify(
-        await browser.verify(target_id, {
-          ...(expect.url_contains !== undefined ? { urlContains: expect.url_contains } : {}),
-          ...(expect.title_contains !== undefined ? { titleContains: expect.title_contains } : {}),
-          ...(expect.text_contains !== undefined ? { textContains: expect.text_contains } : {}),
-          ...(expect.ready_state_equals !== undefined ? { readyStateEquals: expect.ready_state_equals } : {})
-        }, endpoint),
-        null,
-        2
-      )
-    }]
-  })
+  }),
+  async ({ target_id, session_id, endpoint, expect }) => {
+    const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify(
+          await browser.verify(target.targetId, {
+            ...(expect.url_contains !== undefined ? { urlContains: expect.url_contains } : {}),
+            ...(expect.title_contains !== undefined ? { titleContains: expect.title_contains } : {}),
+            ...(expect.text_contains !== undefined ? { textContains: expect.text_contains } : {}),
+            ...(expect.ready_state_equals !== undefined ? { readyStateEquals: expect.ready_state_equals } : {})
+          }, target.endpoint),
+          null,
+          2
+        )
+      }]
+    };
+  }
 );
 
 server.tool(
   "browser_evaluate",
   "Evaluate JavaScript in a browser target through CDP Runtime.evaluate.",
-  {
-    target_id: z.string().min(1),
-    expression: z.string().min(1).max(100_000),
-    endpoint: z.string().url().optional()
-  },
-  async ({ target_id, expression, endpoint }) => ({
-    content: [{ type: "text", text: JSON.stringify(await browser.evaluate(target_id, expression, endpoint), null, 2) }]
-  })
+  browserTargetSchema({ expression: z.string().min(1).max(100_000) }),
+  async ({ target_id, session_id, endpoint, expression }) => {
+    const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    return {
+      content: [{ type: "text", text: JSON.stringify(await browser.evaluate(target.targetId, expression, target.endpoint), null, 2) }]
+    };
+  }
 );
 
 server.tool(
   "browser_find",
   "Find DOM candidates by text/ARIA/name/id using the current browser target.",
-  {
-    target_id: z.string().min(1),
+  browserTargetSchema({
     query: z.string().min(1).max(512),
-    role: z.string().max(128).optional(),
-    endpoint: z.string().url().optional()
-  },
-  async ({ target_id, query, role, endpoint }) => ({
-    content: [{ type: "text", text: JSON.stringify(await browser.find(target_id, query, role, endpoint), null, 2) }]
-  })
+    role: z.string().max(128).optional()
+  }),
+  async ({ target_id, session_id, endpoint, query, role }) => {
+    const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    return {
+      content: [{ type: "text", text: JSON.stringify(await browser.find(target.targetId, query, role, target.endpoint), null, 2) }]
+    };
+  }
 );
 
 server.tool(
   "browser_click",
   "Click a DOM element by CSS selector using the browser CDP surface.",
-  {
-    target_id: z.string().min(1),
-    selector: z.string().min(1).max(2048),
-    endpoint: z.string().url().optional()
-  },
-  async ({ target_id, selector, endpoint }) => ({
-    content: [{ type: "text", text: JSON.stringify(await browser.clickSelector(target_id, selector, endpoint), null, 2) }]
-  })
+  browserTargetSchema({ selector: z.string().min(1).max(2048) }),
+  async ({ target_id, session_id, endpoint, selector }) => {
+    const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    return {
+      content: [{ type: "text", text: JSON.stringify(await browser.clickSelector(target.targetId, selector, target.endpoint), null, 2) }]
+    };
+  }
 );
 
 server.tool(
   "browser_type",
   "Type text into a DOM input/contenteditable selected by CSS selector using the browser CDP surface.",
-  {
-    target_id: z.string().min(1),
+  browserTargetSchema({
     selector: z.string().min(1).max(2048),
-    text: z.string().max(100_000),
-    endpoint: z.string().url().optional()
-  },
-  async ({ target_id, selector, text, endpoint }) => ({
-    content: [{ type: "text", text: JSON.stringify(await browser.typeSelector(target_id, selector, text, endpoint), null, 2) }]
-  })
+    text: z.string().max(100_000)
+  }),
+  async ({ target_id, session_id, endpoint, selector, text }) => {
+    const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    return {
+      content: [{ type: "text", text: JSON.stringify(await browser.typeSelector(target.targetId, selector, text, target.endpoint), null, 2) }]
+    };
+  }
 );
 
 const transport = new StdioServerTransport();
