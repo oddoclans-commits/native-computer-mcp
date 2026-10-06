@@ -9,6 +9,7 @@ Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type -AssemblyName WindowsBase
 
 Add-Type @"
 using System;
@@ -215,6 +216,8 @@ function Get-UiaValue($element) {
 
 function Get-UiaNode($element, [int]$depth = 0, [int]$maxDepth = 8) {
   if ($null -eq $element) { return $null }
+  if ($script:UiaNodeCount -ge 500) { return $null }
+  $script:UiaNodeCount++
 
   try {
     $current = $element.Current
@@ -261,7 +264,7 @@ function Get-UiaNode($element, [int]$depth = 0, [int]$maxDepth = 8) {
         }
       }
 
-      if ($children.Count -gt 0) { $node.children = @($children) }
+      if ($children.Count -gt 0) { $node.children = $children.ToArray() }
     }
 
     return [pscustomobject]$node
@@ -292,7 +295,7 @@ function Resolve-UiaTarget([string]$targetId) {
     throw "Invalid UI Automation target id."
   }
 
-  $values = @(
+  [int[]]$values = @(
     $targetId.Substring(4).Split(".") |
       ForEach-Object { [int]$_ }
   )
@@ -487,6 +490,7 @@ try {
   switch ($request.command) {
     "observe" {
       $active = Get-WindowRecord ([NativeComputer]::GetForegroundWindow())
+      $script:UiaNodeCount = 0
       $observation = [pscustomobject]@{
         activeWindow = $active
         displays = @(Get-Displays)
