@@ -60,6 +60,9 @@ Every mutating action must reference that exact observation ID. After an
 `executed` or `uncertain` action, the observation is consumed and a new
 `computer_observe` is required.
 
+A blocked action does not consume the observation because no native state
+change occurred.
+
 This intentionally creates a cheap control loop:
 
 `observe -> act -> observe -> verify`
@@ -68,29 +71,19 @@ Batch actions can be added later without weakening this invariant.
 
 ## Safety
 
-The protocol supports:
+Safety defaults to `auto` so normal interaction does not create noisy
+approval prompts.
 
-- auto
-- ask
-- deny
+The core infers a baseline risk:
 
-and risk tiers:
+- safe: click, scroll, drag
+- sensitive: typing, key presses, window activation, value setting, secondary actions
 
-- safe
-- sensitive
-- dangerous
+Callers may raise the requested risk but cannot lower the core's inferred
+risk.
 
-The initial runtime transports these semantics while keeping the policy UI
-outside the core.
+When the mode is `ask` or `deny`, sensitive/dangerous actions are blocked
+at the runtime boundary before reaching a native adapter.
 
-## Adapter boundary
-
-Adapters own native details such as:
-
-- Win32 input APIs
-- X11/Wayland APIs
-- macOS Accessibility
-- OCR engines
-- browser/CDP integration
-
-Those implementations must not leak into the MCP contract.
+No approval UI is embedded in the core; an agent or host can decide how to
+resume an approval-required action later.
