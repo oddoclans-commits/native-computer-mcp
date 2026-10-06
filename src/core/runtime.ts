@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { SessionManager } from "./session.js";
+import { verifyObservation, type VerificationSpec } from "./verification.js";
+import { FileTraceSink } from "./trace.js";
 import { findAccessibilityNodes, type AccessibilityMatch } from "./query.js";
 import { verifyObservation, type VerificationSpec } from "./verification.js";
 import type {
@@ -16,7 +19,10 @@ import type {
 export class ComputerRuntime {
   readonly sessions = new SessionManager();
 
-  constructor(private readonly adapter: ComputerAdapter) {}
+  constructor(
+    private readonly adapter: ComputerAdapter,
+    private readonly trace = new FileTraceSink()
+  ) {}
 
   async status() {
     return {
@@ -40,6 +46,7 @@ export class ComputerRuntime {
 
     const observation = await this.adapter.observe();
     this.sessions.recordObservation(sessionId, observation);
+    await this.trace.observation(sessionId, observation).catch(() => []);
     return observation;
   }
 
@@ -128,6 +135,91 @@ export class ComputerRuntime {
     return result;
   }
 
+  verify(
+    sessionId: string,
+    observationId: string,
+    observation: Observation,
+    spec: VerificationSpec = {}
+  ): VerificationResult {
+    const session = this.sessions.get(sessionId);
+    if (!session.active) throw new Error("Session is not active.");
+    this.sessions.assertFreshObservation(sessionId, observationId);
+
+    const result = verifyObservation(
+      observation,
+      this.sessions.getPreviousFingerprint(sessionId),
+      spec
+    );
+    void this.trace.verify(sessionId, observationId, result).catch(() => []);
+    return result;
+  }
+
+  async selectFile(
+    sessionId: string,
+    observationId: string,
+    path: string
+  ): Promise<ActionResult> {
+    return this.runDialogAction(sessionId, observationId, (dialogs) =>
+      dialogs.selectFile(path)
+    );
+  }
+
+  async selectFolder(
+    sessionId: string,
+    observationId: string,
+    path: string
+  ): Promise<ActionResult> {
+    return this.runDialogAction(sessionId, observationId, (dialogs) =>
+      dialogs.selectFolder(path)
+    );
+  }
+
+  async setSavePath(
+    sessionId: string,
+    observationId: string,
+    path: string
+  ): Promise<ActionResult> {
+    return this.runDialogAction(sessionId, observationId, (dialogs) =>
+      dialogs.setSavePath(path)
+    );
+  }
+
+  private async runDialogAction(
+    sessionId: string,
+    observationId: string,
+    operation: (dialogs: DialogAdapter) => Promise<ActionResult>
+  ): Promise<ActionResult> {
+    const dialogs = this.adapter.dialogs;
+    if (!dialogs) {
+      return {
+        status: "blocked",
+        verification: "not_checked",
+        nextObservationRequired: false,
+        message: "This platform does not expose a native dialog adapter."
+      };
+    }
+
+    const session = this.sessions.get(sessionId);
+    if (!session.active) throw new Error("Session is not active.");
+    this.sessions.assertFreshObservation(sessionId, observationId);
+
+    const result = await operation(dialogs);
+    void this.trace.record({
+      id: randomUUID(),
+      kind: "dialog",
+      sessionId,
+      timestamp: new Date().toISOString(),
+      observationId,
+      payload: { result }
+    }).catch(() => []);
+
+    if (result.status === "executed" || result.status === "uncertain") {
+      this.sessions.consumeObservation(sessionId);
+    }
+
+    return result;
+  }
+
   async act(sessionId: string, request: ActionRequest): Promise<ActionResult> {
     const session = this.sessions.get(sessionId);
 
@@ -151,6 +243,7 @@ export class ComputerRuntime {
       ...request,
       risk: safety.risk
     });
+    await this.trace.action(sessionId, request, result).catch(() => []);
 
     if (result.status === "executed" || result.status === "uncertain") {
       this.sessions.consumeObservation(sessionId);
@@ -161,6 +254,13 @@ export class ComputerRuntime {
 
   async stop(sessionId: string) {
     await this.adapter.stop();
+    await this.trace.record({
+      id: randomUUID(),
+      kind: "session_stop",
+      sessionId,
+      timestamp: new Date().toISOString(),
+      payload: {}
+    }).catch(() => []);
     return this.sessions.stop(sessionId);
   }
 }
