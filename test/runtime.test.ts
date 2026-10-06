@@ -69,6 +69,52 @@ test("safety mode blocks sensitive actions without consuming the observation", a
   );
 });
 
+test("accessibility query ranks exact semantic matches first", () => {
+  const { findAccessibilityNodes } = require("../src/core/query.js");
+  const matches = findAccessibilityNodes(
+    [{ id: "uia:1", role: "Button", name: "Save" }],
+    "save"
+  );
+  assert.equal(matches[0]?.targetId, "uia:1");
+  assert.equal(matches[0]?.score, 18);
+});
+
+test("semantic find requires a fresh observation", async () => {
+  const adapter: ComputerAdapter = {
+    platform: "windows",
+    name: "test",
+    async status() { return { ready: true, capabilities: ["ui_automation"] }; },
+    async start() {},
+    async observe() {
+      return {
+        observationId: "obs-find",
+        timestamp: new Date().toISOString(),
+        platform: "windows",
+        displays: [],
+        windows: [],
+        accessibility: [{ id: "uia:9.1", role: "Button", name: "Save" }],
+        capabilities: ["ui_automation"]
+      };
+    },
+    async act() {
+      return { status: "executed", verification: "needs_observation", nextObservationRequired: true };
+    },
+    async stop() {}
+  };
+
+  const runtime = new ComputerRuntime(adapter);
+  const session = await runtime.start();
+  const observation = await runtime.observe(session.id);
+  assert.equal(runtime.find(session.id, observation.observationId, "save")[0]?.targetId, "uia:9.1");
+
+  await runtime.act(session.id, {
+    observationId: observation.observationId,
+    action: { type: "click", targetId: "uia:9.1" }
+  });
+
+  assert.throws(() => runtime.find(session.id, observation.observationId, "save"));
+});
+
 test("default adapter is selected from the host OS", () => {
   const adapter = createDefaultAdapter();
 
