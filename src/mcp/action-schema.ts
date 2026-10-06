@@ -23,7 +23,7 @@ export const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("scroll"),
     deltaX: z.number().finite().optional(),
-    deltaY: z.number().finite().optional()
+    deltaY: z.number().finite()
   }),
   z.object({
     type: z.literal("drag"),
