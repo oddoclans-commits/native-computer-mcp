@@ -30,7 +30,7 @@ struct Payload: Codable {
     let to: Point?
 }
 
-func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+func attribute(_ element: AXUIElement, _ name: String) -> Any? {
     var value: CFTypeRef?
     let error = AXUIElementCopyAttributeValue(element, name as CFString, &value)
     return error == .success ? value : nil
@@ -45,8 +45,10 @@ func boolAttribute(_ element: AXUIElement, _ name: String) -> Bool? {
 }
 
 func boundsAttribute(_ element: AXUIElement) -> Bounds? {
-    guard let value = attribute(element, kAXPositionAttribute) as? AXValue,
-          let sizeValue = attribute(element, kAXSizeAttribute) as? AXValue else {
+    guard let rawValue = attribute(element, kAXPositionAttribute),
+          let rawSizeValue = attribute(element, kAXSizeAttribute),
+          let value = rawValue as? AXValue,
+          let sizeValue = rawSizeValue as? AXValue else {
         return nil
     }
 
@@ -145,7 +147,8 @@ func axRoot() throws -> AXUIElement {
     let app = try frontmostApplication()
     let root = AXUIElementCreateApplication(app.processIdentifier)
 
-    if let window = attribute(root, kAXFocusedWindowAttribute) as? AXUIElement {
+    if let rawWindow = attribute(root, kAXFocusedWindowAttribute),
+       let window = rawWindow as? AXUIElement {
         return window
     }
     return root
