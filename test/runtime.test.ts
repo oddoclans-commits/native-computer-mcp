@@ -135,3 +135,40 @@ test("action schema accepts semantic click targets", () => {
   assert.equal(parsed.targetId, "uia:42.7");
   assert.throws(() => actionSchema.parse({ type: "click" }));
 });
+
+test("verification detects semantic/window expectations", () => {
+  const observation: Observation = {
+    observationId: "verify-1",
+    timestamp: new Date().toISOString(),
+    platform: "windows",
+    activeWindow: {
+      id: "1",
+      title: "Editor - Notes",
+      appName: "Editor",
+      focused: true
+    },
+    displays: [],
+    windows: [
+      { id: "1", title: "Editor - Notes", appName: "Editor", focused: true }
+    ],
+    accessibility: [
+      { id: "uia:1", role: "Button", name: "Save" }
+    ],
+    capabilities: ["ui_automation"]
+  };
+
+  const { verifyObservation } = require("../src/core/verification.js");
+  const result = verifyObservation(
+    observation,
+    undefined,
+    {
+      activeWindowTitleContains: "Notes",
+      activeAppNameEquals: "Editor",
+      targetQuery: "Save",
+      targetRole: "Button"
+    }
+  );
+
+  assert.equal(result.status, "confirmed");
+  assert.equal(result.checks.every((check) => check.passed), true);
+});
