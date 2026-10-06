@@ -27,8 +27,13 @@ struct Payload: Codable {
     let point: Point?
     let button: String?
     let value: String?
+    let text: String?
+    let modifiers: [String]?
+    let deltaX: Double?
+    let deltaY: Double?
     let from: Point?
     let to: Point?
+    let durationMs: Int?
 }
 
 func attribute(_ element: AXUIElement, _ name: String) -> Any? {
@@ -408,13 +413,31 @@ func sendDrag(_ from: CGPoint, _ to: CGPoint, durationMs: Int) {
 }
 
 func setValue(_ element: AXUIElement, _ value: String) throws {
+    var settable = DarwinBoolean(false)
+    let settableError = AXUIElementIsAttributeSettable(
+        element,
+        kAXValueAttribute as CFString,
+        &settable
+    )
+    guard settableError == .success && settable.boolValue else {
+        throw NSError(
+            domain: "native-computer-mcp",
+            code: 22,
+            userInfo: [NSLocalizedDescriptionKey: "AX value attribute is not settable."]
+        )
+    }
+
     let error = AXUIElementSetAttributeValue(
         element,
         kAXValueAttribute as CFString,
         value as CFTypeRef
     )
     if error != .success {
-        throw NSError(domain: "native-computer-mcp", code: Int(error.rawValue), userInfo: [NSLocalizedDescriptionKey: "AX value update failed."])
+        throw NSError(
+            domain: "native-computer-mcp",
+            code: Int(error.rawValue),
+            userInfo: [NSLocalizedDescriptionKey: "AX value update failed."]
+        )
     }
 }
 
@@ -461,16 +484,22 @@ func main(_ request: Request) throws -> [String: Any] {
         switch payload.type {
         case "click":
             if payload.button == "right" {
-                guard let bounds = boundsAttribute(element) else { throw NSError(domain: "native-computer-mcp", code: 4, userInfo: [NSLocalizedDescriptionKey: "AX target has no bounds."]) }
+                guard let bounds = boundsAttribute(element) else {
+                    throw NSError(domain: "native-computer-mcp", code: 4, userInfo: [NSLocalizedDescriptionKey: "AX target has no bounds."])
+                }
                 click(CGPoint(x: bounds.x + bounds.width / 2.0, y: bounds.y + bounds.height / 2.0), .right)
+            } else if payload.button == "middle" {
+                guard let bounds = boundsAttribute(element) else {
+                    throw NSError(domain: "native-computer-mcp", code: 4, userInfo: [NSLocalizedDescriptionKey: "AX target has no bounds."])
+                }
+                click(CGPoint(x: bounds.x + bounds.width / 2.0, y: bounds.y + bounds.height / 2.0), .center)
             } else {
                 try invoke(element)
             }
         case "set_value":
             try setValue(element, payload.value ?? "")
         case "secondary_action":
-            guard let bounds = boundsAttribute(element) else { throw NSError(domain: "native-computer-mcp", code: 5, userInfo: [NSLocalizedDescriptionKey: "AX target has no bounds."]) }
-            click(CGPoint(x: bounds.x + bounds.width / 2.0, y: bounds.y + bounds.height / 2.0), .right)
+            try invokeSecondary(element)
         default:
             throw NSError(domain: "native-computer-mcp", code: 6, userInfo: [NSLocalizedDescriptionKey: "Unsupported AX semantic action."])
         }
@@ -478,10 +507,29 @@ func main(_ request: Request) throws -> [String: Any] {
         return ["ok": true]
     }
 
-    if payload.type == "click", let point = payload.point {
-        let button: CGMouseButton = payload.button == "right" ? .right : payload.button == "middle" ? .center : .left
-        click(CGPoint(x: point.x, y: point.y), button)
+    switch payload.type {
+    case "click":
+        if let point = payload.point {
+            let button: CGMouseButton = payload.button == "right" ? .right : payload.button == "middle" ? .center : .left
+            click(CGPoint(x: point.x, y: point.y), button)
+            return ["ok": true]
+        }
+    case "type":
+        sendText(payload.text ?? "")
         return ["ok": true]
+    case "key":
+        try sendKey(payload.value ?? "", modifiers: payload.modifiers ?? [])
+        return ["ok": true]
+    case "scroll":
+        sendScroll(payload.deltaX ?? 0, payload.deltaY ?? 0)
+        return ["ok": true]
+    case "drag":
+        if let from = payload.from, let to = payload.to {
+            sendDrag(CGPoint(x: from.x, y: from.y), CGPoint(x: to.x, y: to.y), payload.durationMs ?? 250)
+            return ["ok": true]
+        }
+    default:
+        break
     }
 
     throw NSError(domain: "native-computer-mcp", code: 7, userInfo: [NSLocalizedDescriptionKey: "Unsupported AX action."])
