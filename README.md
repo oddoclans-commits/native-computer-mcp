@@ -33,6 +33,9 @@ The broader protocol is designed to support:
 
 `observe -> act -> execute -> artifact -> approval -> resume`
 
+Runtime hardening adds bounded action/session budgets, native-action timeouts,
+best-effort interrupt/input-release hooks, and a deterministic E2E lab harness.
+
 A successful native input event does not automatically mean the requested task
 state was reached.
 
@@ -54,6 +57,9 @@ v0.1 currently includes:
 - Linux Wayland adapter with AT-SPI semantic targets, `wtype` keyboard input, `ydotool` pointer/scroll/drag input, and `grim` screenshots
 - Linux AT-SPI semantic accessibility discovery/actions when pyatspi is available, with X11 pointer fallback for secondary/middle-click targets
 - explicit action/verification semantics
+- capability negotiation in `computer_status` (available/supported/missing, preferred strategies, fallbacks, limitations)
+- runtime action/session budgets plus `computer_cancel`
+- semantic browser stale-target revalidation before click/type
 - trace IDs on action results (`trace:<uuid>`) with optional agent-supplied `turn_id`
 - GitHub Actions CI on Linux, Windows, and macOS
 
@@ -69,6 +75,7 @@ Current limitations:
 - Browser state fingerprints are bounded to URL/title/readyState/body text and are intended for lightweight verification, not full DOM archival.
 - Browser session records persist under `.artifacts/browser-sessions/`; they reconnect to a still-running target but do not checkpoint or restore an arbitrary browser process after a crash.
 - Browser launch is intentionally minimal: it starts a Chromium-family process with a persistent `user-data-dir` and loopback CDP endpoint; it does not manage extensions, profiles inside the browser UI, or browser-specific policies.
+- Timeout/cancel remains best-effort at the adapter boundary because not every native backend yet exposes a hard interrupt primitive.
 
 ## Development
 
