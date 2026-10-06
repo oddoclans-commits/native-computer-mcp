@@ -316,6 +316,11 @@ test("browser AX normalization produces the universal accessibility node contrac
   assert.equal(roots[0]?.children?.[0]?.automationId, "42");
   assert.equal(roots[0]?.children?.[0]?.focused, true);
   assert.equal(roots[0]?.children?.[0]?.enabled, true);
+
+  const { findAccessibilityNodes } = await import("../src/core/query.js");
+  const matches = findAccessibilityNodes(roots, "save", "button");
+  assert.equal(matches[0]?.targetId, "cdp:2");
+  assert.equal(matches[0]?.score, 18);
 });
 
 
