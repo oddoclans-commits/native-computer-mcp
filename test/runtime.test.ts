@@ -380,3 +380,70 @@ test("browser sessions persist across store instances", async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+
+test("runtime action timeout returns uncertain and releases inputs", async () => {
+  const adapter: ComputerAdapter & { interrupted: number; released: number } = {
+    platform: "windows",
+    name: "timeout-test",
+    interrupted: 0,
+    released: 0,
+    async status() { return { ready: true, capabilities: ["native_input"] }; },
+    async start() {},
+    async observe() {
+      return {
+        observationId: "timeout-obs",
+        timestamp: new Date().toISOString(),
+        platform: "windows",
+        displays: [],
+        windows: [],
+        capabilities: ["native_input"]
+      };
+    },
+    async act() {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return { status: "executed", verification: "needs_observation", nextObservationRequired: true };
+    },
+    async interrupt() { this.interrupted += 1; },
+    async releaseInputs() { this.released += 1; },
+    async stop() {}
+  };
+
+  const runtime = new ComputerRuntime(adapter, undefined, { actionTimeoutMs: 5 });
+  const session = await runtime.start();
+  const observation = await runtime.observe(session.id);
+
+  const result = await runtime.act(session.id, {
+    observationId: observation.observationId,
+    action: { type: "click", point: { x: 1, y: 1 } }
+  });
+
+  assert.equal(result.status, "uncertain");
+  assert.equal(result.nextObservationRequired, true);
+  assert.equal(adapter.interrupted, 1);
+  assert.equal(adapter.released, 1);
+  assert.throws(() => runtime.sessions.assertFreshObservation(session.id, observation.observationId));
+});
+
+test("browser semantic guard rejects a replaced accessibility target", async () => {
+  const { revalidateBrowserSemanticTarget } = await import("../src/surfaces/browser/guard.js");
+
+  const candidate = {
+    targetId: "cdp:1",
+    automationId: "42",
+    role: "button",
+    name: "Save",
+    score: 18,
+    enabled: true
+  };
+
+  assert.throws(
+    () => revalidateBrowserSemanticTarget(
+      candidate,
+      [{ id: "cdp:2", role: "button", name: "Save", automationId: "99", enabled: true }],
+      "Save",
+      "button"
+    ),
+    /stale or changed/
+  );
+});
