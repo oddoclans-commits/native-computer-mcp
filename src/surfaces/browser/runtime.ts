@@ -187,7 +187,7 @@ export class BrowserLauncher {
 
     for (const candidate of candidates) {
       if (!candidate) continue;
-      if (candidate.includes("/") || candidate.includes("\\") || candidate.endsWith(".exe")) {
+      if (candidate.includes("/") || candidate.includes("\\")) {
         if (existsSync(candidate)) return candidate;
         continue;
       }
