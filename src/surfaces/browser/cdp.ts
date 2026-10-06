@@ -74,6 +74,48 @@ export class CdpBrowserSurface {
     });
   }
 
+  async find(targetId: string, query: string, role?: string, endpoint = "http://127.0.0.1:9222") {
+    const expression =
+      "(() => {" +
+      "const q=" + JSON.stringify(query.toLowerCase()) + ";" +
+      "const role=" + JSON.stringify((role ?? "").toLowerCase()) + ";" +
+      "return [...document.querySelectorAll('*')].filter(el => {" +
+      "if (role && (el.getAttribute('role') || '').toLowerCase() !== role) return false;" +
+      "const text=[el.getAttribute('aria-label')||'',el.textContent||'',el.getAttribute('name')||'',el.id||''].join(' ').toLowerCase();" +
+      "return text.includes(q);" +
+      "}).slice(0,20).map(el => ({tag:el.tagName,role:el.getAttribute('role'),name:el.getAttribute('aria-label')||el.getAttribute('name'),id:el.id||null,text:(el.textContent||'').trim().slice(0,200)}));" +
+      "})()";
+    return this.evaluate(targetId, expression, endpoint);
+  }
+
+  async clickSelector(targetId: string, selector: string, endpoint = "http://127.0.0.1:9222") {
+    const expression =
+      "(() => {" +
+      "const selector=" + JSON.stringify(selector) + ";" +
+      "const el=document.querySelector(selector);" +
+      "if(!el) throw new Error('Browser selector not found: '+selector);" +
+      "el.scrollIntoView({block:'center',inline:'center'});" +
+      "el.click();" +
+      "return {clicked:true,selector};" +
+      "})()";
+    return this.evaluate(targetId, expression, endpoint);
+  }
+
+  async typeSelector(targetId: string, selector: string, value: string, endpoint = "http://127.0.0.1:9222") {
+    const expression =
+      "(() => {" +
+      "const selector=" + JSON.stringify(selector) + ";" +
+      "const value=" + JSON.stringify(value) + ";" +
+      "const el=document.querySelector(selector);" +
+      "if(!el) throw new Error('Browser selector not found: '+selector);" +
+      "el.focus();" +
+      "if('value' in el){el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}" +
+      "else{el.textContent=value;}" +
+      "return {typed:true,selector,length:value.length};" +
+      "})()";
+    return this.evaluate(targetId, expression, endpoint);
+  }
+
   async close(): Promise<void> {
     for (const [targetId, connection] of this.connections) {
       connection.socket.close();
