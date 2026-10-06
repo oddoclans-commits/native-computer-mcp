@@ -1,9 +1,17 @@
 import { randomUUID } from "node:crypto";
+import { observationFingerprint } from "./verification.js";
 import type { AccessibilityNode, Observation, RuntimeSession } from "../types.js";
+
+interface StoredObservation {
+  observationId: string;
+  fingerprint: string;
+  accessibility: AccessibilityNode[];
+}
 
 export class SessionManager {
   private readonly sessions = new Map<string, RuntimeSession>();
-  private readonly accessibilityBySession = new Map<string, AccessibilityNode[]>();
+  private readonly observations = new Map<string, StoredObservation>();
+  private readonly previousFingerprints = new Map<string, string>();
 
   create(): RuntimeSession {
     const session: RuntimeSession = {
@@ -11,7 +19,6 @@ export class SessionManager {
       createdAt: new Date().toISOString(),
       active: true
     };
-
     this.sessions.set(session.id, session);
     return session;
   }
@@ -24,16 +31,26 @@ export class SessionManager {
 
   recordObservation(sessionId: string, observation: Observation): void {
     const session = this.get(sessionId);
+    const previous = this.observations.get(sessionId);
+    if (previous) this.previousFingerprints.set(sessionId, previous.fingerprint);
+
     session.observationId = observation.observationId;
-    this.accessibilityBySession.set(
-      sessionId,
-      observation.accessibility ? structuredClone(observation.accessibility) : []
-    );
+    this.observations.set(sessionId, {
+      observationId: observation.observationId,
+      fingerprint: observationFingerprint(observation),
+      accessibility: observation.accessibility
+        ? structuredClone(observation.accessibility)
+        : []
+    });
   }
 
   getAccessibility(sessionId: string, observationId: string): AccessibilityNode[] {
     this.assertFreshObservation(sessionId, observationId);
-    return structuredClone(this.accessibilityBySession.get(sessionId) ?? []);
+    return structuredClone(this.observations.get(sessionId)?.accessibility ?? []);
+  }
+
+  getPreviousFingerprint(sessionId: string): string | undefined {
+    return this.previousFingerprints.get(sessionId);
   }
 
   assertFreshObservation(sessionId: string, observationId?: string): void {
@@ -51,14 +68,15 @@ export class SessionManager {
   consumeObservation(sessionId: string): void {
     const session = this.get(sessionId);
     delete session.observationId;
-    this.accessibilityBySession.delete(sessionId);
+    this.observations.delete(sessionId);
   }
 
   stop(sessionId: string): RuntimeSession {
     const session = this.get(sessionId);
     session.active = false;
     delete session.observationId;
-    this.accessibilityBySession.delete(sessionId);
+    this.observations.delete(sessionId);
+    this.previousFingerprints.delete(sessionId);
     return session;
   }
 }
