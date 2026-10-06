@@ -38,7 +38,7 @@ export class LinuxWaylandAdapter extends BaseComputerAdapter {
       capabilities.push("ui_automation", "semantic_targets", "semantic_actions", "accessibility_atspi");
     }
 
-    const ready = wayland && capabilities.length > 0;
+    const ready = wayland && (atspi || ydotool || wtype);
     return {
       ready,
       capabilities: [...new Set(capabilities)],
