@@ -1,5 +1,10 @@
 import { SessionManager } from "./session.js";
-import type { ComputerAdapter, Observation, ActionRequest, ActionResult } from "../types.js";
+import type {
+  ComputerAdapter,
+  Observation,
+  ActionRequest,
+  ActionResult
+} from "../types.js";
 
 export class ComputerRuntime {
   readonly sessions = new SessionManager();
@@ -39,7 +44,13 @@ export class ComputerRuntime {
     }
 
     this.sessions.assertFreshObservation(sessionId, request.observationId);
-    return this.adapter.act(request);
+    const result = await this.adapter.act(request);
+
+    if (result.status === "executed" || result.status === "uncertain") {
+      this.sessions.consumeObservation(sessionId);
+    }
+
+    return result;
   }
 
   async stop(sessionId: string) {
