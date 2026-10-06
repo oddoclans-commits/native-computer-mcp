@@ -5,6 +5,7 @@ import { ComputerRuntime } from "../src/core/runtime.js";
 import { createDefaultAdapter } from "../src/adapters/factory.js";
 import { findAccessibilityNodes } from "../src/core/query.js";
 import { actionSchema } from "../src/mcp/action-schema.js";
+import { verifyObservation } from "../src/core/verification.js";
 import type { ComputerAdapter, Observation } from "../src/types.js";
 
 test("session rejects stale observations and consumes successful actions", () => {
@@ -157,7 +158,6 @@ test("verification detects semantic/window expectations", () => {
     capabilities: ["ui_automation"]
   };
 
-  const { verifyObservation } = require("../src/core/verification.js");
   const result = verifyObservation(
     observation,
     undefined,
