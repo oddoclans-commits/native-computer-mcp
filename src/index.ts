@@ -279,6 +279,17 @@ const browserTargetSchema = (extra: ZodRawShape = {}) =>
     "Provide exactly one of target_id or session_id."
   );
 
+const browserLocatorSchema = (extra: ZodRawShape = {}) =>
+  browserTargetSchema({
+    selector: z.string().min(1).max(2048).optional(),
+    query: z.string().min(1).max(512).optional(),
+    role: z.string().max(128).optional(),
+    ...extra
+  }).refine(
+    (input) => Boolean(input.selector) !== Boolean(input.query),
+    "Provide exactly one of selector or query."
+  );
+
 async function resolveBrowserTarget(input: {
   target_id?: string;
   session_id?: string;
@@ -495,27 +506,30 @@ server.tool(
 
 server.tool(
   "browser_click",
-  "Click a DOM element by CSS selector using the browser CDP surface.",
-  browserTargetSchema({ selector: z.string().min(1).max(2048) }),
-  async ({ target_id, session_id, endpoint, selector }) => {
+  "Click a browser element by CSS selector or semantic accessibility query.",
+  browserLocatorSchema(),
+  async ({ target_id, session_id, endpoint, selector, query, role }) => {
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    const result = selector
+      ? await browser.clickSelector(target.targetId, selector, target.endpoint)
+      : await browser.clickAccessible(target.targetId, query!, role, target.endpoint);
     return {
-      content: [{ type: "text", text: JSON.stringify(await browser.clickSelector(target.targetId, selector, target.endpoint), null, 2) }]
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
     };
   }
 );
 
 server.tool(
   "browser_type",
-  "Type text into a DOM input/contenteditable selected by CSS selector using the browser CDP surface.",
-  browserTargetSchema({
-    selector: z.string().min(1).max(2048),
-    text: z.string().max(100_000)
-  }),
-  async ({ target_id, session_id, endpoint, selector, text }) => {
+  "Type text into a browser input/contenteditable by CSS selector or semantic accessibility query.",
+  browserLocatorSchema({ text: z.string().max(100_000) }),
+  async ({ target_id, session_id, endpoint, selector, query, role, text }) => {
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    const result = selector
+      ? await browser.typeSelector(target.targetId, selector, text, target.endpoint)
+      : await browser.typeAccessible(target.targetId, query!, text, role, target.endpoint);
     return {
-      content: [{ type: "text", text: JSON.stringify(await browser.typeSelector(target.targetId, selector, text, target.endpoint), null, 2) }]
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
     };
   }
 );
