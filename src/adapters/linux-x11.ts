@@ -176,8 +176,12 @@ export class LinuxX11Adapter extends BaseComputerAdapter {
 
   private async getActiveWindow(): Promise<WindowInfo | undefined> {
     try {
-      const id = (await this.runCommand("xdotool", ["getactivewindow"])).trim();
-      if (!id) return undefined;
+      const rawId = (await this.runCommand("xdotool", ["getactivewindow"])).trim();
+      if (!rawId) return undefined;
+
+      const id = rawId.startsWith("0x")
+        ? rawId
+        : `0x${BigInt(rawId).toString(16)}`;
 
       const title = (await this.runCommand("xdotool", ["getwindowname", id])).trim();
       const geometry = (await this.runCommand("xdotool", ["getwindowgeometry", "--shell", id])).trim();
