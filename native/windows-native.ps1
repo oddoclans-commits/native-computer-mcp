@@ -318,7 +318,18 @@ function Get-UiaClickablePoint($element) {
   return $null
 }
 
+function Assert-UiaEnabled($element) {
+  try {
+    if (-not $element.Current.IsEnabled) {
+      throw "UI Automation target is disabled."
+    }
+  } catch {
+    throw $_
+  }
+}
+
 function Invoke-UiaPrimary($element) {
+  Assert-UiaEnabled $element
   try {
     $invoke = $null
     if ($element.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) {
@@ -349,12 +360,14 @@ function Invoke-UiaPrimary($element) {
 }
 
 function Invoke-UiaSecondary($element) {
+  Assert-UiaEnabled $element
   $point = Get-UiaClickablePoint $element
   if ($null -eq $point) { throw "UI Automation target has no clickable point for secondary action." }
   Click-At ([int]$point.X) ([int]$point.Y) "right"
 }
 
 function Set-UiaValue($element, [string]$value) {
+  Assert-UiaEnabled $element
   $patternObject = $null
   if (-not $element.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$patternObject)) {
     throw "UI Automation target does not expose ValuePattern."
