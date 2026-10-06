@@ -138,13 +138,12 @@ export class ComputerRuntime {
   verify(
     sessionId: string,
     observationId: string,
-    observation: Observation,
     spec: VerificationSpec = {}
   ): VerificationResult {
     const session = this.sessions.get(sessionId);
     if (!session.active) throw new Error("Session is not active.");
-    this.sessions.assertFreshObservation(sessionId, observationId);
 
+    const observation = this.sessions.getObservation(sessionId, observationId);
     const result = verifyObservation(
       observation,
       this.sessions.getPreviousFingerprint(sessionId),
