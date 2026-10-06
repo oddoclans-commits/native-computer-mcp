@@ -3,7 +3,10 @@ import type {
   ComputerAdapter,
   Observation,
   ActionRequest,
-  ActionResult
+  ActionResult,
+  Action,
+  RiskTier,
+  SafetyMode
 } from "../types.js";
 
 export class ComputerRuntime {
@@ -44,7 +47,21 @@ export class ComputerRuntime {
     }
 
     this.sessions.assertFreshObservation(sessionId, request.observationId);
-    const result = await this.adapter.act(request);
+
+    const safety = evaluateSafety(request.action, request.risk, request.safetyMode);
+    if (!safety.allowed) {
+      return {
+        status: "blocked",
+        verification: "not_checked",
+        nextObservationRequired: false,
+        message: safety.message
+      };
+    }
+
+    const result = await this.adapter.act({
+      ...request,
+      risk: safety.risk
+    });
 
     if (result.status === "executed" || result.status === "uncertain") {
       this.sessions.consumeObservation(sessionId);
@@ -57,4 +74,51 @@ export class ComputerRuntime {
     await this.adapter.stop();
     return this.sessions.stop(sessionId);
   }
+}
+
+function evaluateSafety(
+  action: Action,
+  requestedRisk?: RiskTier,
+  mode: SafetyMode = "auto"
+): { allowed: boolean; risk: RiskTier; message?: string } {
+  const inferred = inferRisk(action);
+  const risk = maxRisk(inferred, requestedRisk ?? "safe");
+
+  if (mode === "auto" || risk === "safe") {
+    return { allowed: true, risk };
+  }
+
+  return {
+    allowed: false,
+    risk,
+    message:
+      mode === "ask"
+        ? `Approval required for ${risk} action: ${action.type}.`
+        : `Action denied by safety mode: ${risk} action ${action.type}.`
+  };
+}
+
+function inferRisk(action: Action): RiskTier {
+  switch (action.type) {
+    case "click":
+    case "scroll":
+    case "drag":
+      return "safe";
+    case "type":
+    case "key":
+    case "activate_window":
+    case "set_value":
+    case "secondary_action":
+      return "sensitive";
+  }
+}
+
+function maxRisk(left: RiskTier, right: RiskTier): RiskTier {
+  const rank: Record<RiskTier, number> = {
+    safe: 0,
+    sensitive: 1,
+    dangerous: 2
+  };
+
+  return rank[left] >= rank[right] ? left : right;
 }
