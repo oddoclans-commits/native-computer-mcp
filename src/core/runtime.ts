@@ -171,33 +171,39 @@ export class ComputerRuntime {
     if (!session.active) throw new Error("Session is not active.");
 
     this.sessions.assertFreshObservation(sessionId, request.observationId);
+    const actionId = randomUUID();
 
     const safety = evaluateSafety(request.action, request.risk, request.safetyMode);
     if (!safety.allowed) {
-      return {
+      const result: ActionResult = {
         status: "blocked",
         verification: "not_checked",
         nextObservationRequired: false,
-        message: safety.message
+        message: safety.message,
+        traceId: actionId,
+        evidence: ["trace:" + actionId]
       };
+      await this.trace.action(sessionId, request, result, actionId).catch(() => []);
+      return result;
     }
 
     const result = await this.adapter.act({
       ...request,
       risk: safety.risk
     });
-    const actionId = randomUUID();
-    await this.trace.action(sessionId, request, result, actionId).catch(() => []);
+
+    const tracedResult: ActionResult = {
+      ...result,
+      traceId: actionId,
+      evidence: [...(result.evidence ?? []), "trace:" + actionId]
+    };
+    await this.trace.action(sessionId, request, tracedResult, actionId).catch(() => []);
 
     if (result.status === "executed" || result.status === "uncertain") {
       this.sessions.consumeObservation(sessionId);
     }
 
-    return {
-      ...result,
-      traceId: actionId,
-      evidence: [...(result.evidence ?? []), "trace:" + actionId]
-    };
+    return tracedResult;
   }
 
   async stop(sessionId: string) {

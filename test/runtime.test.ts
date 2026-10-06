@@ -221,3 +221,62 @@ test("observation diff reports window, accessibility, and screenshot changes", (
   assert.ok(diff.changedFields.includes("screenshot"));
 });
 
+
+
+test("action result traceId matches the persisted trace event and turnId", async () => {
+  const events: string[] = [];
+  const trace = new (await import("../src/core/trace.js")).FileTraceSink({
+    async writeText(path, content) {
+      events.push(content);
+      return path;
+    },
+    async writeBytes(path, _data) {
+      return path;
+    }
+  });
+
+  const adapter: ComputerAdapter = {
+    platform: "unknown",
+    name: "trace-test",
+    async status() { return { ready: true, capabilities: [] }; },
+    async start() {},
+    async observe() {
+      return {
+        observationId: "trace-obs",
+        timestamp: new Date().toISOString(),
+        platform: "unknown",
+        displays: [],
+        windows: [],
+        capabilities: []
+      };
+    },
+    async act() {
+      return {
+        status: "executed",
+        verification: "needs_observation",
+        nextObservationRequired: true
+      };
+    },
+    async stop() {}
+  };
+
+  const runtime = new ComputerRuntime(adapter, trace);
+  const session = await runtime.start();
+  const observation = await runtime.observe(session.id);
+  const result = await runtime.act(session.id, {
+    observationId: observation.observationId,
+    turnId: "turn-42",
+    action: { type: "click", point: { x: 10, y: 20 } }
+  });
+
+  assert.ok(result.traceId);
+  assert.ok(result.evidence?.includes("trace:" + result.traceId));
+
+  const actEvent = events
+    .map((value) => JSON.parse(value))
+    .find((event) => event.kind === "act");
+  assert.equal(actEvent?.id, result.traceId);
+  assert.equal(actEvent?.actionId, result.traceId);
+  assert.equal(actEvent?.turnId, "turn-42");
+  assert.equal(actEvent?.payload?.result?.traceId, result.traceId);
+});
