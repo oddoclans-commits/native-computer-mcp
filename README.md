@@ -51,6 +51,7 @@ v0.1 currently includes:
 - browser locators can use either CSS selectors or semantic accessibility queries
 - persistent browser sessions with restart-safe session records and detached profile launcher
 - Linux X11 native input + window/display discovery + screenshots
+- Linux Wayland adapter with AT-SPI semantic targets, `wtype` keyboard input, `ydotool` pointer/scroll/drag input, and `grim` screenshots
 - Linux AT-SPI semantic accessibility discovery/actions when pyatspi is available, with X11 pointer fallback for secondary/middle-click targets
 - explicit action/verification semantics
 - trace IDs on action results (`trace:<uuid>`) with optional agent-supplied `turn_id`
@@ -59,7 +60,8 @@ v0.1 currently includes:
 Current limitations:
 
 - OCR is not implemented.
-- Wayland input is not implemented.
+- Wayland window-management APIs remain compositor-specific; the adapter does not pretend to provide a universal `activate_window` implementation.
+- Wayland pointer/drag input uses `ydotool` when available; its daemon uses Linux `/dev/uinput` and may require elevated host permissions.
 - Browser CDP is an independent first-class surface; its normalized AX tree reuses the universal `AccessibilityNode` contract, while its verification contract remains separate from the desktop observation lifecycle.
 - macOS requires Accessibility permission and a real interactive user session for runtime validation.
 - macOS observation captures the main display through the native `screencapture` utility when screen capture permission allows it.
