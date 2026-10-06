@@ -17,8 +17,9 @@ native-computer-mcp is a working OS-agnostic MCP/runtime foundation with:
 - Linux AT-SPI adapter
 - Linux window/display discovery
 - semantic target query via `computer_find`
-- GitHub Actions CI for Linux and Windows
+- GitHub Actions CI for Linux, Windows, and macOS
 - Windows UI Automation assembly smoke test
+- macOS Swift AX helper validation
 
 ## Windows UIA loop
 
@@ -53,9 +54,10 @@ UIA primary click preference:
 - Windows UIA has not been exercised against a real interactive Windows desktop
   in this environment; CI verifies compilation/parser/assembly availability.
 - Linux currently supports X11 pointer input and AT-SPI semantic accessibility; Wayland pointer input is not implemented.
-- Accessibility tree support is Windows-first.
+- Accessibility trees now normalize into the universal `AccessibilityNode` contract across native desktop adapters and the browser CDP surface.
 - OCR is not implemented.
 - Browser/CDP surface has direct target listing, raw + normalized accessibility snapshots, state/verify, navigation, find, click, type, and Runtime.evaluate.
+- Browser sessions can attach to an existing target or launch a detached Chromium-family process with a persistent user-data directory; session records survive MCP restarts.
 - Windows file/folder/save dialogs are now first-class tools.
 - macOS AX adapter is implemented; real desktop permission/runtime testing still requires a macOS user session.
 - Rich verification now has a reusable state/screenshot diff primitive and `computer_diff` MCP tool.
@@ -63,9 +65,9 @@ UIA primary click preference:
 
 ## Next engineering order
 
-1. Browser session persistence beyond process lifetime/profile launch controls.
-2. Linux AT-SPI richer actions and Wayland bridge.
-3. macOS AX richer actions.
+1. Linux AT-SPI richer actions and Wayland bridge.
+2. macOS AX richer actions.
+3. Browser semantic targeting from normalized AX nodes, including target-safe activation.
 4. Trace/artifact retention policy.
 5. Broader cross-platform capability negotiation.
 
