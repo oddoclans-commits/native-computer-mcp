@@ -110,6 +110,72 @@ server.tool(
 );
 
 server.tool(
+  "computer_select_file",
+  "Select a file in a native file picker using the current fresh observation.",
+  {
+    session_id: z.string().min(1),
+    observation_id: z.string().min(1),
+    path: z.string().min(1).max(4096)
+  },
+  async ({ session_id, observation_id, path }) => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          await runtime.selectFile(session_id, observation_id, path),
+          null,
+          2
+        )
+      }
+    ]
+  })
+);
+
+server.tool(
+  "computer_select_folder",
+  "Select a folder in a native folder picker using the current fresh observation.",
+  {
+    session_id: z.string().min(1),
+    observation_id: z.string().min(1),
+    path: z.string().min(1).max(4096)
+  },
+  async ({ session_id, observation_id, path }) => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          await runtime.selectFolder(session_id, observation_id, path),
+          null,
+          2
+        )
+      }
+    ]
+  })
+);
+
+server.tool(
+  "computer_set_save_path",
+  "Set the target path in a native save dialog and press Save.",
+  {
+    session_id: z.string().min(1),
+    observation_id: z.string().min(1),
+    path: z.string().min(1).max(4096)
+  },
+  async ({ session_id, observation_id, path }) => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(
+          await runtime.setSavePath(session_id, observation_id, path),
+          null,
+          2
+        )
+      }
+    ]
+  })
+);
+
+server.tool(
   "computer_verify",
   "Verify the current fresh observation against window/semantic expectations and optionally detect change from the previous observation.",
   {
