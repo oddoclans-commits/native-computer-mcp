@@ -63,14 +63,16 @@ UIA primary click preference:
 - macOS AX adapter is implemented; real desktop permission/runtime testing still requires a macOS user session.
 - Rich verification now has a reusable state/screenshot diff primitive and `computer_diff` MCP tool.
 - Diffing uses exact screenshot SHA-256 fingerprints plus active-window, display, window, and accessibility-tree deltas.
+- Consumed observations remain available as the previous verification baseline, preserving the canonical `observe -> act -> observe -> verify/diff` loop.
+- `computer_status` now exposes capability negotiation and runtime safety budgets.
 
 ## Next engineering order
 
-1. Linux AT-SPI richer actions and Wayland bridge.
-2. macOS AX richer actions.
-3. Trace/artifact retention policy.
-4. Broader cross-platform capability negotiation.
-5. Real interactive smoke coverage on Windows/macOS/Linux desktop sessions.
+1. Real interactive E2E lab sessions on Windows, macOS, Linux X11, and Linux Wayland.
+2. Browser CDP E2E with navigation and DOM-replacement/stale-target cases.
+3. Hard interrupt/input-release implementations per native adapter.
+4. Trace/artifact retention and crash-recovery policy.
+5. Agent integration: OpenCode/Pi/Claude/Codex/Gemini.
 
 ## Design invariant
 
