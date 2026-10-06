@@ -4,7 +4,7 @@
 | --- | --- | --- | --- | --- |
 | screenshot | yes | native | planned | native X11 |
 | OCR | optional | planned | planned | planned |
-| accessibility tree | optional | planned UIA | planned AX | planned AT-SPI |
+| accessibility tree | optional | native UIA | planned AX | planned AT-SPI |
 | native mouse/keyboard | yes | native Win32 | planned | native X11 |
 | window discovery | yes | native Win32/.NET | planned | native wmctrl |
 | dialogs | yes | planned | planned | planned |
