@@ -288,14 +288,23 @@ function parseWmctrlLine(line: string): WindowInfo | undefined {
   const match = line.match(/^(\S+)\s+(\S+)\s+(-?\d+)\s+(-?\d+)\s+(\d+)\s+(\d+)\s+\S+\s+(.*)$/);
   if (!match) return undefined;
 
+  const id = match[1];
+  const x = match[3];
+  const y = match[4];
+  const width = match[5];
+  const height = match[6];
+  const title = match[7];
+
+  if (!id || !x || !y || !width || !height || !title) return undefined;
+
   return {
-    id: match[1],
+    id,
     bounds: {
-      x: Number(match[3]),
-      y: Number(match[4]),
-      width: Number(match[5]),
-      height: Number(match[6])
+      x: Number(x),
+      y: Number(y),
+      width: Number(width),
+      height: Number(height)
     },
-    title: match[7]
+    title
   };
 }
