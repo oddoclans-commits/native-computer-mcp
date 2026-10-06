@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
+import { z, type ZodRawShape } from "zod";
 import { ComputerRuntime } from "./core/runtime.js";
 import { createDefaultAdapter } from "./adapters/factory.js";
 import {
@@ -270,7 +270,7 @@ const browserTargetFields = {
   endpoint: z.string().url().optional()
 };
 
-const browserTargetSchema = (extra: z.ZodRawShape = {}) =>
+const browserTargetSchema = (extra: ZodRawShape = {}) =>
   z.object({
     ...browserTargetFields,
     ...extra
