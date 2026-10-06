@@ -229,7 +229,7 @@ export class CdpBrowserSurface {
     if (!candidate) {
       throw new Error("No enabled browser accessibility target matched \"" + query + "\".");
     }
-    if (!candidate.automationId || !/^\\d+$/.test(candidate.automationId)) {
+    if (!candidate.automationId || !/^\d+$/.test(candidate.automationId)) {
       throw new Error("Browser accessibility target \"" + candidate.targetId + "\" has no backend DOM node id.");
     }
 
@@ -270,7 +270,7 @@ export class CdpBrowserSurface {
     if (!candidate) {
       throw new Error("No enabled browser accessibility target matched \"" + query + "\".");
     }
-    if (!candidate.automationId || !/^\\d+$/.test(candidate.automationId)) {
+    if (!candidate.automationId || !/^\d+$/.test(candidate.automationId)) {
       throw new Error("Browser accessibility target \"" + candidate.targetId + "\" has no backend DOM node id.");
     }
 
