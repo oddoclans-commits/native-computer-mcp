@@ -47,3 +47,8 @@ jobs:
           $path = Join-Path $env:GITHUB_WORKSPACE 'native/windows-native.ps1'
           [void][ScriptBlock]::Create((Get-Content -Raw $path))
           Write-Host "PowerShell parser validation passed."
+
+      - name: Windows UI Automation smoke test
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File native/windows-uia-smoke.ps1
