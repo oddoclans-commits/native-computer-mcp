@@ -98,7 +98,21 @@ export class SessionManager {
       displays: structuredClone(stored.displays),
       windows: structuredClone(stored.windows),
       accessibility: structuredClone(stored.accessibility),
-      capabilities: [...stored.capabilities]
+      capabilities: [...stored.capabilities],
+      ...(stored.screenshot
+        ? {
+            screenshot: {
+              mimeType: stored.screenshot.mimeType,
+              uri: "sha256:" + stored.screenshot.sha256,
+              ...(stored.screenshot.width !== undefined
+                ? { width: stored.screenshot.width }
+                : {}),
+              ...(stored.screenshot.height !== undefined
+                ? { height: stored.screenshot.height }
+                : {})
+            }
+          }
+        : {})
     };
   }
 

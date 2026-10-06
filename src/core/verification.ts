@@ -34,10 +34,21 @@ export function observationFingerprint(observation: Observation): string {
       minimized: window.minimized
     })),
     accessibility: observation.accessibility ?? [],
-    screenshot: observation.screenshot?.uri ?? null
+    screenshot: observation.screenshot ? screenshotFingerprintValue(observation) : null
   };
 
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
+}
+
+function screenshotFingerprintValue(observation: Observation): string | null {
+  const screenshot = observation.screenshot;
+  if (!screenshot) return null;
+  if (screenshot.data !== undefined) {
+    return createHash("sha256")
+      .update(Buffer.from(screenshot.data, "base64"))
+      .digest("hex");
+  }
+  return screenshot.uri ?? null;
 }
 
 export function verifyObservation(
@@ -105,8 +116,8 @@ export function verifyObservation(
       name: "observation_changed",
       passed: changed === spec.expectChanged,
       message:
-        previousFingerprint === undefined
-          ? "no previous observation fingerprint is available"
+        previousObservation === undefined
+          ? "no previous observation is available"
           : changed
             ? "observation changed"
             : "observation did not change"
