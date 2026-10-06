@@ -162,6 +162,13 @@ export class SessionManager {
 
   consumeObservation(sessionId: string): void {
     const session = this.get(sessionId);
+    const current = this.observations.get(sessionId);
+
+    if (current) {
+      this.previousFingerprints.set(sessionId, current.fingerprint);
+      this.previousObservations.set(sessionId, structuredClone(current));
+    }
+
     delete session.observationId;
     this.observations.delete(sessionId);
   }
