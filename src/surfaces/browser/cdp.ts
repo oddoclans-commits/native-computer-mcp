@@ -244,10 +244,16 @@ export class CdpBrowserSurface {
     return this.evaluate(targetId, expression, endpoint);
   }
 
+  async disconnect(targetId: string): Promise<void> {
+    const connection = this.connections.get(targetId);
+    if (!connection) return;
+    connection.socket.close();
+    this.connections.delete(targetId);
+  }
+
   async close(): Promise<void> {
-    for (const [targetId, connection] of this.connections) {
-      connection.socket.close();
-      this.connections.delete(targetId);
+    for (const targetId of [...this.connections.keys()]) {
+      await this.disconnect(targetId);
     }
   }
 
