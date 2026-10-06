@@ -65,8 +65,8 @@ UIA primary click preference:
 
 1. Browser session persistence beyond process lifetime/profile launch controls.
 2. Linux AT-SPI richer actions and Wayland bridge.
-3. macOS AX richer actions and screenshot capture.
-4. Trace/artifact retention policy and turn/action evidence IDs.
+3. macOS AX richer actions.
+4. Trace/artifact retention policy.
 5. Broader cross-platform capability negotiation.
 
 ## Design invariant

@@ -1,10 +1,11 @@
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { mkdir } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
 import { BaseComputerAdapter } from "./base.js";
 import { commandExists, runCommand } from "./command.js";
 import type { ActionRequest, ActionResult, Observation } from "../types.js";
+import { tmpdir } from "node:os";
 
 interface AxResponse {
   ok: boolean;
@@ -73,6 +74,8 @@ export class MacOSAXAdapter extends BaseComputerAdapter {
       throw new Error(response.message ?? "macOS AX observation failed.");
     }
 
+    const screenshot = await this.captureScreenshot();
+
     return {
       observationId: randomUUID(),
       timestamp: new Date().toISOString(),
@@ -81,8 +84,11 @@ export class MacOSAXAdapter extends BaseComputerAdapter {
       displays: [],
       windows: [],
       ...(response.accessibility ? { accessibility: response.accessibility } : {}),
-      ...(response.screenshot ? { screenshot: response.screenshot } : {}),
-      capabilities: response.capabilities ?? []
+      ...(screenshot ? { screenshot } : {}),
+      capabilities: [...new Set([
+        ...(response.capabilities ?? []),
+        ...(screenshot ? ["screenshot"] : [])
+      ])]
     };
   }
 
@@ -113,6 +119,37 @@ export class MacOSAXAdapter extends BaseComputerAdapter {
   }
 
   async stop(): Promise<void> {}
+
+  private async captureScreenshot(): Promise<Observation["screenshot"] | undefined> {
+    const directory = await mkdtemp(join(tmpdir(), "native-computer-mcp-"));
+    const path = join(directory, "screen.png");
+
+    try {
+      const result = await runCommand(
+        "/usr/sbin/screencapture",
+        ["-x", "-m", "-t", "png", path],
+        { timeoutMs: 10_000 }
+      );
+
+      if (result.code !== 0) return undefined;
+
+      const bytes = await readFile(path);
+      if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) return undefined;
+
+      const data = bytes.toString("base64");
+      const hash = createHash("sha256").update(bytes).digest("hex");
+
+      return {
+        mimeType: "image/png",
+        data,
+        uri: `sha256:${hash}`
+      };
+    } catch {
+      return undefined;
+    } finally {
+      await rm(directory, { recursive: true, force: true }).catch(() => {});
+    }
+  }
 
   private async invoke(command: string, payload?: unknown): Promise<AxResponse> {
     const result = await runCommand(

@@ -2,8 +2,6 @@ import Foundation
 import AppKit
 import ApplicationServices
 import CoreGraphics
-import ImageIO
-import UniformTypeIdentifiers
 
 struct Point: Codable {
     let x: Double
@@ -176,36 +174,6 @@ func invoke(_ element: AXUIElement) throws {
         )
     }
 }
-
-func captureMainDisplay() -> [String: Any]? {
-    guard let image = CGDisplayCreateImage(CGMainDisplayID()) else {
-        return nil
-    }
-
-    let data = NSMutableData()
-    guard let destination = CGImageDestinationCreateWithData(
-        data,
-        UTType.png.identifier as CFString,
-        1,
-        nil
-    ) else {
-        return nil
-    }
-
-    CGImageDestinationAddImage(destination, image, nil)
-    guard CGImageDestinationFinalize(destination) else {
-        return nil
-    }
-
-    let encoded = (data as Data).base64EncodedString()
-    return [
-        "mimeType": "image/png",
-        "data": encoded,
-        "width": image.width,
-        "height": image.height
-    ]
-}
-
 func setValue(_ element: AXUIElement, _ value: String) throws {
     let error = AXUIElementSetAttributeValue(
         element,
@@ -236,15 +204,9 @@ func main(_ request: Request) throws -> [String: Any] {
                 "ui_automation",
                 "semantic_targets",
                 "semantic_actions",
-                "accessibility_ax",
-                "screenshot"
+                "accessibility_ax"
             ]
         ]
-
-        if let screenshot = captureMainDisplay() {
-            result["screenshot"] = screenshot
-        }
-
         result["activeWindow"] = [
             "id": String(root.hashValue),
             "title": (stringAttribute(root, kAXTitleAttribute) ?? ""),
