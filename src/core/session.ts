@@ -55,7 +55,7 @@ export class SessionManager {
   }
 
   getAccessibility(sessionId: string, observationId: string): AccessibilityNode[] {
-    return structuredClone(this.getObservation(sessionId, observationId).accessibility);
+    return structuredClone(this.getObservation(sessionId, observationId).accessibility ?? []);
   }
 
   getObservation(sessionId: string, observationId: string): Observation {
