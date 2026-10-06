@@ -4,6 +4,7 @@ import { verifyObservation, type VerificationSpec } from "./verification.js";
 import { observationDiff } from "./diff.js";
 import { FileTraceSink } from "./trace.js";
 import { findAccessibilityNodes, type AccessibilityMatch } from "./query.js";
+import { negotiateCapabilities } from "./capabilities.js";
 import type {
   ComputerAdapter,
   Observation,
@@ -17,25 +18,61 @@ import type {
   ObservationDiff
 } from "../types.js";
 
+export interface RuntimeOptions {
+  actionTimeoutMs?: number;
+  maxActionsPerSession?: number;
+  maxSessionDurationMs?: number;
+}
+
+interface RuntimeBudget {
+  startedAtMs: number;
+  actions: number;
+}
+
+const DEFAULT_RUNTIME_OPTIONS: Required<RuntimeOptions> = {
+  actionTimeoutMs: 30_000,
+  maxActionsPerSession: 250,
+  maxSessionDurationMs: 30 * 60 * 1000
+};
+
 export class ComputerRuntime {
   readonly sessions = new SessionManager();
+  private readonly options: Required<RuntimeOptions>;
+  private readonly budgets = new Map<string, RuntimeBudget>();
+  private readonly activeActions = new Set<string>();
 
   constructor(
     private readonly adapter: ComputerAdapter,
-    private readonly trace = new FileTraceSink()
-  ) {}
+    private readonly trace = new FileTraceSink(),
+    options: RuntimeOptions = {}
+  ) {
+    this.options = { ...DEFAULT_RUNTIME_OPTIONS, ...options };
+  }
 
-  async status() {
+  async status(requested: string[] = []) {
+    const adapterStatus = await this.adapter.status();
     return {
       adapter: this.adapter.name,
       platform: this.adapter.platform,
-      ...(await this.adapter.status())
+      ...adapterStatus,
+      negotiation: negotiateCapabilities(
+        this.adapter.platform,
+        this.adapter.name,
+        adapterStatus.capabilities,
+        requested
+      ),
+      runtime: {
+        actionTimeoutMs: this.options.actionTimeoutMs,
+        maxActionsPerSession: this.options.maxActionsPerSession,
+        maxSessionDurationMs: this.options.maxSessionDurationMs
+      }
     };
   }
 
   async start() {
     await this.adapter.start();
     const session = this.sessions.create();
+    this.budgets.set(session.id, { startedAtMs: Date.now(), actions: 0 });
 
     await this.trace.record({
       id: randomUUID(),
@@ -51,6 +88,7 @@ export class ComputerRuntime {
   async observe(sessionId: string): Promise<Observation> {
     const session = this.sessions.get(sessionId);
     if (!session.active) throw new Error("Session is not active.");
+    this.assertBudget(sessionId);
 
     const observation = await this.adapter.observe();
     this.sessions.recordObservation(sessionId, observation);
@@ -66,6 +104,7 @@ export class ComputerRuntime {
   ): AccessibilityMatch[] {
     const session = this.sessions.get(sessionId);
     if (!session.active) throw new Error("Session is not active.");
+    this.assertBudget(sessionId);
 
     const roots = this.sessions.getAccessibility(sessionId, observationId);
     return findAccessibilityNodes(roots, query, role);
@@ -78,6 +117,7 @@ export class ComputerRuntime {
   ): VerificationResult {
     const session = this.sessions.get(sessionId);
     if (!session.active) throw new Error("Session is not active.");
+    this.assertBudget(sessionId);
 
     const observation = this.sessions.getObservation(sessionId, observationId);
     const result = verifyObservation(
@@ -169,6 +209,7 @@ export class ComputerRuntime {
   async act(sessionId: string, request: ActionRequest): Promise<ActionResult> {
     const session = this.sessions.get(sessionId);
     if (!session.active) throw new Error("Session is not active.");
+    this.assertBudget(sessionId);
 
     this.sessions.assertFreshObservation(sessionId, request.observationId);
     const actionId = randomUUID();
@@ -187,10 +228,30 @@ export class ComputerRuntime {
       return result;
     }
 
-    const result = await this.adapter.act({
-      ...request,
-      risk: safety.risk
-    });
+    this.bumpActionBudget(sessionId);
+    this.activeActions.add(sessionId);
+
+    let result: ActionResult;
+    try {
+      result = await this.withTimeout(
+        this.adapter.act({
+          ...request,
+          risk: safety.risk
+        }),
+        this.options.actionTimeoutMs
+      );
+    } catch (error) {
+      await this.adapter.interrupt?.().catch(() => {});
+      await this.adapter.releaseInputs?.().catch(() => {});
+      result = {
+        status: "uncertain",
+        verification: "needs_observation",
+        nextObservationRequired: true,
+        message: error instanceof Error ? error.message : String(error)
+      };
+    } finally {
+      this.activeActions.delete(sessionId);
+    }
 
     const tracedResult: ActionResult = {
       ...result,
@@ -206,17 +267,85 @@ export class ComputerRuntime {
     return tracedResult;
   }
 
-  async stop(sessionId: string) {
-    await this.adapter.stop();
-    await this.trace.record({
-      id: randomUUID(),
-      kind: "session_stop",
+  async cancel(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (!session.active) throw new Error("Session is not active.");
+
+    await this.adapter.interrupt?.().catch(() => {});
+    await this.adapter.releaseInputs?.().catch(() => {});
+
+    return {
       sessionId,
-      timestamp: new Date().toISOString(),
-      payload: {}
-    }).catch(() => []);
+      activeAction: this.activeActions.has(sessionId),
+      cancelled: true,
+      message: this.adapter.interrupt
+        ? "Cancellation signal sent to the native adapter."
+        : "Cancellation requested, but this adapter does not expose an interrupt hook; input release was attempted."
+    };
+  }
+
+  async stop(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (!session.active) return session;
+
+    try {
+      await this.adapter.interrupt?.().catch(() => {});
+      await this.adapter.releaseInputs?.().catch(() => {});
+      await this.adapter.stop();
+    } finally {
+      this.budgets.delete(sessionId);
+      this.activeActions.delete(sessionId);
+      await this.trace.record({
+        id: randomUUID(),
+        kind: "session_stop",
+        sessionId,
+        timestamp: new Date().toISOString(),
+        payload: {}
+      }).catch(() => []);
+    }
 
     return this.sessions.stop(sessionId);
+  }
+
+  private assertBudget(sessionId: string): void {
+    const budget = this.budgets.get(sessionId);
+    if (!budget) throw new Error("Runtime session budget is not available.");
+
+    if (Date.now() - budget.startedAtMs > this.options.maxSessionDurationMs) {
+      throw new Error(
+        `Session exceeded the maximum runtime budget of ${this.options.maxSessionDurationMs}ms.`
+      );
+    }
+  }
+
+  private bumpActionBudget(sessionId: string): void {
+    const budget = this.budgets.get(sessionId);
+    if (!budget) throw new Error("Runtime session budget is not available.");
+
+    if (budget.actions >= this.options.maxActionsPerSession) {
+      throw new Error(
+        `Session exceeded the maximum action budget of ${this.options.maxActionsPerSession} actions.`
+      );
+    }
+
+    budget.actions += 1;
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`Native action timed out after ${timeoutMs}ms.`)),
+            timeoutMs
+          );
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 }
 
