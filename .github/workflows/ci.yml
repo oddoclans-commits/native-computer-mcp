@@ -50,9 +50,7 @@ jobs:
 
       - name: Validate Linux AT-SPI helper
         if: runner.os == 'Linux'
-        run: |
-          python3 -m py_compile native/linux-atspi.py
-          python3 -m py_compile native/linux-wayland.py 2>/dev/null || true
+        run: python3 -m py_compile native/linux-atspi.py
 
       - name: Windows UI Automation smoke test
         if: runner.os == 'Windows'
