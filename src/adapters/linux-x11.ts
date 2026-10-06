@@ -89,6 +89,15 @@ export class LinuxX11Adapter extends BaseComputerAdapter {
     try {
       switch (action.type) {
         case "click":
+          if (!action.point) {
+            return {
+              status: "blocked",
+              verification: "not_checked",
+              nextObservationRequired: false,
+              message:
+                "Linux X11 adapter does not support semantic targetId clicks yet. Provide a coordinate point."
+            };
+          }
           await this.click(action.point.x, action.point.y, action.button ?? "left");
           break;
         case "type":
