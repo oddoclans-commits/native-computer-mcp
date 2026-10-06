@@ -1,5 +1,4 @@
 export type Platform = "windows" | "macos" | "linux" | "unknown";
-
 export type RiskTier = "safe" | "sensitive" | "dangerous";
 export type SafetyMode = "auto" | "ask" | "deny";
 
@@ -90,32 +89,6 @@ export interface VerificationResult {
   message?: string;
 }
 
-export interface DialogAdapter {
-  selectFile(path: string): Promise<ActionResult>;
-  selectFolder(path: string): Promise<ActionResult>;
-  setSavePath(path: string): Promise<ActionResult>;
-}
-
-export interface BrowserTarget {
-  id: string;
-  type: string;
-  title?: string;
-  url?: string;
-  webSocketDebuggerUrl?: string;
-}
-
-export interface ComputerAdapter {
-  readonly platform: Platform;
-  readonly name: string;
-
-  status(): Promise<AdapterStatus>;
-  start(): Promise<void>;
-  observe(): Promise<Observation>;
-  act(request: ActionRequest): Promise<ActionResult>;
-  stop(): Promise<void>;
-  dialogs?: DialogAdapter;
-}
-
 export type Action =
   | {
       type: "click";
@@ -153,15 +126,29 @@ export interface AdapterStatus {
   details?: Record<string, unknown>;
 }
 
+export interface DialogAdapter {
+  selectFile(path: string): Promise<ActionResult>;
+  selectFolder(path: string): Promise<ActionResult>;
+  setSavePath(path: string): Promise<ActionResult>;
+}
+
+export interface BrowserTarget {
+  id: string;
+  type: string;
+  title?: string;
+  url?: string;
+  webSocketDebuggerUrl?: string;
+}
+
 export interface ComputerAdapter {
   readonly platform: Platform;
   readonly name: string;
-
   status(): Promise<AdapterStatus>;
   start(): Promise<void>;
   observe(): Promise<Observation>;
   act(request: ActionRequest): Promise<ActionResult>;
   stop(): Promise<void>;
+  dialogs?: DialogAdapter;
 }
 
 export interface RuntimeSession {
