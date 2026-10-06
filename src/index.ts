@@ -264,31 +264,42 @@ const browser = new CdpBrowserSurface();
 const browserSessions = new BrowserSessionStore();
 const browserLauncher = new BrowserLauncher();
 
-const browserTargetFields = {
+const browserTargetFields: ZodRawShape = {
   target_id: z.string().min(1).max(256).optional(),
   session_id: z.string().min(1).max(256).optional(),
   endpoint: z.string().url().optional()
 };
 
-const browserTargetSchema = (extra: ZodRawShape = {}) =>
-  z.object({
-    ...browserTargetFields,
-    ...extra
-  }).refine(
-    (input) => Boolean(input.target_id) !== Boolean(input.session_id),
-    "Provide exactly one of target_id or session_id."
-  );
+const browserTargetSchema = (extra: ZodRawShape = {}): ZodRawShape => ({
+  ...browserTargetFields,
+  ...extra
+});
 
-const browserLocatorSchema = (extra: ZodRawShape = {}) =>
-  browserTargetSchema({
-    selector: z.string().min(1).max(2048).optional(),
-    query: z.string().min(1).max(512).optional(),
-    role: z.string().max(128).optional(),
-    ...extra
-  }).refine(
-    (input) => Boolean(input.selector) !== Boolean(input.query),
-    "Provide exactly one of selector or query."
-  );
+const browserLocatorSchema = (extra: ZodRawShape = {}): ZodRawShape => ({
+  ...browserTargetFields,
+  selector: z.string().min(1).max(2048).optional(),
+  query: z.string().min(1).max(512).optional(),
+  role: z.string().max(128).optional(),
+  ...extra
+});
+
+function requireOneBrowserTarget(
+  targetId?: string,
+  sessionId?: string
+): void {
+  if (Boolean(targetId) === Boolean(sessionId)) {
+    throw new Error("Provide exactly one of target_id or session_id.");
+  }
+}
+
+function requireOneBrowserLocator(
+  selector?: string,
+  query?: string
+): void {
+  if (Boolean(selector) === Boolean(query)) {
+    throw new Error("Provide exactly one of selector or query.");
+  }
+}
 
 async function resolveBrowserTarget(input: {
   target_id?: string;
@@ -400,6 +411,7 @@ server.tool(
   "Read the raw accessibility snapshot of a browser target through CDP.",
   browserTargetSchema(),
   async ({ target_id, session_id, endpoint }) => {
+    requireOneBrowserTarget(target_id, session_id);
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
     return {
       content: [{ type: "text", text: JSON.stringify(await browser.snapshot(target.targetId, target.endpoint), null, 2) }]
@@ -427,6 +439,7 @@ server.tool(
   "Navigate a browser target through CDP Page.navigate.",
   browserTargetSchema({ url: z.string().url() }),
   async ({ target_id, session_id, endpoint, url }) => {
+    requireOneBrowserTarget(target_id, session_id);
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
     return {
       content: [{ type: "text", text: JSON.stringify(await browser.navigate(target.targetId, url, target.endpoint), null, 2) }]
@@ -458,6 +471,7 @@ server.tool(
     })
   }),
   async ({ target_id, session_id, endpoint, expect }) => {
+    requireOneBrowserTarget(target_id, session_id);
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
     return {
       content: [{
@@ -482,6 +496,7 @@ server.tool(
   "Evaluate JavaScript in a browser target through CDP Runtime.evaluate.",
   browserTargetSchema({ expression: z.string().min(1).max(100_000) }),
   async ({ target_id, session_id, endpoint, expression }) => {
+    requireOneBrowserTarget(target_id, session_id);
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
     return {
       content: [{ type: "text", text: JSON.stringify(await browser.evaluate(target.targetId, expression, target.endpoint), null, 2) }]
@@ -497,6 +512,7 @@ server.tool(
     role: z.string().max(128).optional()
   }),
   async ({ target_id, session_id, endpoint, query, role }) => {
+    requireOneBrowserTarget(target_id, session_id);
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
     return {
       content: [{ type: "text", text: JSON.stringify(await browser.find(target.targetId, query, role, target.endpoint), null, 2) }]
@@ -509,6 +525,8 @@ server.tool(
   "Click a browser element by CSS selector or semantic accessibility query.",
   browserLocatorSchema(),
   async ({ target_id, session_id, endpoint, selector, query, role }) => {
+    requireOneBrowserTarget(target_id, session_id);
+    requireOneBrowserLocator(selector, query);
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
     const result = selector
       ? await browser.clickSelector(target.targetId, selector, target.endpoint)
@@ -524,6 +542,8 @@ server.tool(
   "Type text into a browser input/contenteditable by CSS selector or semantic accessibility query.",
   browserLocatorSchema({ text: z.string().max(100_000) }),
   async ({ target_id, session_id, endpoint, selector, query, role, text }) => {
+    requireOneBrowserTarget(target_id, session_id);
+    requireOneBrowserLocator(selector, query);
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
     const result = selector
       ? await browser.typeSelector(target.targetId, selector, text, target.endpoint)
