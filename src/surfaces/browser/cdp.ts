@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import WebSocket from "ws";
 import type { BrowserTarget } from "../../types.js";
 
@@ -12,6 +13,28 @@ interface CdpConnection {
   socket: WebSocket;
   nextId: number;
   pending: Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>;
+}
+
+export interface BrowserState {
+  targetId: string;
+  url?: string;
+  title?: string;
+  readyState?: string;
+  textPreview?: string;
+  textSha256?: string;
+}
+
+export interface BrowserVerificationCheck {
+  name: string;
+  passed: boolean;
+  message: string;
+}
+
+export interface BrowserVerificationResult {
+  status: "confirmed" | "failed" | "not_checked";
+  state: BrowserState;
+  checks: BrowserVerificationCheck[];
+  message: string;
 }
 
 export interface BrowserStatus {
@@ -59,6 +82,98 @@ export class CdpBrowserSurface {
   ) {
     const connection = await this.connectionFor(targetId, endpoint);
     return this.call(connection, "Page.navigate", { url });
+  }
+
+  async state(
+    targetId: string,
+    endpoint = "http://127.0.0.1:9222"
+  ): Promise<BrowserState> {
+    const raw = await this.evaluate(targetId, `(() => ({
+      url: location.href,
+      title: document.title,
+      readyState: document.readyState,
+      text: (document.body?.innerText || "").slice(0, 100000)
+    }))()`, endpoint) as {
+      url?: string;
+      title?: string;
+      readyState?: string;
+      text?: string;
+    };
+
+    const textValue = raw.text ?? "";
+    return {
+      targetId,
+      ...(raw.url ? { url: raw.url } : {}),
+      ...(raw.title !== undefined ? { title: raw.title } : {}),
+      ...(raw.readyState ? { readyState: raw.readyState } : {}),
+      ...(textValue ? { textPreview: textValue.slice(0, 2000) } : {}),
+      textSha256: createHash("sha256").update(textValue).digest("hex")
+    };
+  }
+
+  async verify(
+    targetId: string,
+    expect: {
+      urlContains?: string;
+      titleContains?: string;
+      textContains?: string;
+      readyStateEquals?: string;
+    },
+    endpoint = "http://127.0.0.1:9222"
+  ): Promise<BrowserVerificationResult> {
+    const state = await this.state(targetId, endpoint);
+    const checks: BrowserVerificationCheck[] = [];
+
+    if (expect.urlContains !== undefined) {
+      const actual = state.url ?? "";
+      const needle = expect.urlContains.toLocaleLowerCase();
+      checks.push({
+        name: "url_contains",
+        passed: actual.toLocaleLowerCase().includes(needle),
+        message: `current URL is "${actual}"`
+      });
+    }
+
+    if (expect.titleContains !== undefined) {
+      const actual = state.title ?? "";
+      const needle = expect.titleContains.toLocaleLowerCase();
+      checks.push({
+        name: "title_contains",
+        passed: actual.toLocaleLowerCase().includes(needle),
+        message: `document title is "${actual}"`
+      });
+    }
+
+    if (expect.textContains !== undefined) {
+      const actual = state.textPreview ?? "";
+      const needle = expect.textContains.toLocaleLowerCase();
+      checks.push({
+        name: "text_contains",
+        passed: actual.toLocaleLowerCase().includes(needle),
+        message: `body text preview contains requested text: ${actual.toLocaleLowerCase().includes(needle)}`
+      });
+    }
+
+    if (expect.readyStateEquals !== undefined) {
+      const actual = state.readyState ?? "";
+      checks.push({
+        name: "ready_state",
+        passed: actual === expect.readyStateEquals,
+        message: `document readyState is "${actual}"`
+      });
+    }
+
+    const passed = checks.length > 0 && checks.every((check) => check.passed);
+    return {
+      status: checks.length === 0 ? "not_checked" : passed ? "confirmed" : "failed",
+      state,
+      checks,
+      message: passed
+        ? "All requested browser verification checks passed."
+        : checks.length === 0
+          ? "No browser verification checks were requested."
+          : "One or more browser verification checks failed."
+    };
   }
 
   async evaluate(

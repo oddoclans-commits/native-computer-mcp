@@ -303,6 +303,48 @@ server.tool(
 );
 
 server.tool(
+  "browser_state",
+  "Read current browser URL, title, readyState, and a bounded body-text fingerprint.",
+  {
+    target_id: z.string().min(1),
+    endpoint: z.string().url().optional()
+  },
+  async ({ target_id, endpoint }) => ({
+    content: [{ type: "text", text: JSON.stringify(await browser.state(target_id, endpoint), null, 2) }]
+  })
+);
+
+server.tool(
+  "browser_verify",
+  "Verify current browser URL, title, text, and readyState without consuming a desktop observation.",
+  {
+    target_id: z.string().min(1),
+    endpoint: z.string().url().optional(),
+    expect: z.object({
+      url_contains: z.string().max(4096).optional(),
+      title_contains: z.string().max(1024).optional(),
+      text_contains: z.string().max(4096).optional(),
+      ready_state_equals: z.enum(["loading", "interactive", "complete"]).optional()
+    })
+  },
+  async ({ target_id, endpoint, expect }) => ({
+    content: [{
+      type: "text",
+      text: JSON.stringify(
+        await browser.verify(target_id, {
+          ...(expect.url_contains !== undefined ? { urlContains: expect.url_contains } : {}),
+          ...(expect.title_contains !== undefined ? { titleContains: expect.title_contains } : {}),
+          ...(expect.text_contains !== undefined ? { textContains: expect.text_contains } : {}),
+          ...(expect.ready_state_equals !== undefined ? { readyStateEquals: expect.ready_state_equals } : {})
+        }, endpoint),
+        null,
+        2
+      )
+    }]
+  })
+);
+
+server.tool(
   "browser_evaluate",
   "Evaluate JavaScript in a browser target through CDP Runtime.evaluate.",
   {

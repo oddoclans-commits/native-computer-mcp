@@ -46,7 +46,7 @@ v0.1 currently includes:
 - Windows native input + window/display discovery + screenshots
 - Windows UIA accessibility tree with `targetId`, `ValuePattern`, invoke/toggle/select, and semantic secondary actions
 - native dialog helpers: select file, select folder, set save path
-- direct CDP browser tools: status, tabs, accessibility snapshot, find, navigate, click, type, evaluate
+- direct CDP browser tools: status, tabs, accessibility snapshot, state, verify, find, navigate, click, type, evaluate
 - Linux X11 native input + window/display discovery + screenshots
 - Linux AT-SPI semantic accessibility discovery when pyatspi is available
 - explicit action/verification semantics
@@ -56,9 +56,10 @@ Current limitations:
 
 - OCR is not implemented.
 - Wayland input is not implemented.
-- Browser CDP actions are direct browser-surface tools and are not yet integrated into the desktop observation/verification lifecycle.
+- Browser CDP is an independent first-class surface; its verification contract is separate from the desktop observation lifecycle.
 - macOS requires Accessibility permission and a real interactive user session for runtime validation.
 - Rich diffing compares screenshot fingerprints and semantic/window state; pixel heatmaps are not included yet.
+- Browser state fingerprints are bounded to URL/title/readyState/body text and are intended for lightweight verification, not full DOM archival.
 
 ## Development
 
