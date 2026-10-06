@@ -376,6 +376,91 @@ function Set-UiaValue($element, [string]$value) {
   $patternObject.SetValue($value)
 }
 
+
+function Find-UiaDialogElement($root, [string]$kind, [string[]]$names = @(), [string[]]$automationIds = @()) {
+  $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+
+  $stack = New-Object System.Collections.Generic.Stack[object]
+  $stack.Push($root)
+
+  while ($stack.Count -gt 0) {
+    $element = $stack.Pop()
+    try {
+      $current = $element.Current
+      $matchesType = $true
+      if ($kind -eq "Edit" -and $current.ControlType.ProgrammaticName -notlike "*Edit") {
+        $matchesType = $false
+      }
+      if ($kind -eq "Button" -and $current.ControlType.ProgrammaticName -notlike "*Button") {
+        $matchesType = $false
+      }
+
+      if ($matchesType) {
+        foreach ($automationId in $automationIds) {
+          if ($current.AutomationId -eq $automationId) { return $element }
+        }
+
+        foreach ($name in $names) {
+          if ($current.Name -eq $name) { return $element }
+        }
+      }
+
+      $child = $walker.GetFirstChild($element)
+      $count = 0
+      while ($null -ne $child -and $count -lt 500) {
+        $stack.Push($child)
+        $child = $walker.GetNextSibling($child)
+        $count++
+      }
+    } catch {}
+  }
+
+  return $null
+}
+
+function Invoke-UiaDialog($operation, $path) {
+  $foreground = [NativeComputer]::GetForegroundWindow()
+  if ($foreground -eq [IntPtr]::Zero) { throw "No foreground dialog is available." }
+
+  $root = [System.Windows.Automation.AutomationElement]::FromHandle($foreground)
+  if ($null -eq $root) { throw "Foreground window is not UI Automation accessible." }
+
+  $fileEdit = Find-UiaDialogElement $root "Edit" @("File name:", "File name") @("1148")
+  if ($null -eq $fileEdit) { throw "Could not locate the Windows file-name edit control." }
+
+  Set-UiaValue $fileEdit $path
+
+  if ($operation -eq "select_file") {
+    $button = Find-UiaDialogElement $root "Button" @("Open", "&Open") @("1")
+    if ($null -eq $button) { throw "Could not locate the Open button." }
+    Invoke-UiaPrimary $button
+    return
+  }
+
+  if ($operation -eq "set_save_path") {
+    $button = Find-UiaDialogElement $root "Button" @("Save", "&Save") @("1")
+    if ($null -eq $button) { throw "Could not locate the Save button." }
+    Invoke-UiaPrimary $button
+    return
+  }
+
+  if ($operation -eq "select_folder") {
+    $button = Find-UiaDialogElement $root "Button" @(
+      "Select Folder",
+      "Select folder",
+      "&Select Folder",
+      "Select"
+    ) @()
+    if ($null -eq $button) {
+      throw "Could not locate a Select Folder button in the foreground dialog."
+    }
+    Invoke-UiaPrimary $button
+    return
+  }
+
+  throw "Unsupported dialog operation: $operation"
+}
+
 function Get-Windows() {
   return @(
     Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle } | ForEach-Object {
@@ -501,6 +586,9 @@ function Invoke-Action($payload) {
     "set_value" {
       $element = Resolve-UiaTarget ([string]$payload.targetId)
       Set-UiaValue $element ([string]$payload.value)
+    }
+    "dialog" {
+      Invoke-UiaDialog ([string]$payload.operation) ([string]$payload.path)
     }
     "secondary_action" {
       $element = Resolve-UiaTarget ([string]$payload.targetId)
