@@ -11,6 +11,8 @@ import {
 import { verificationSpecSchema } from "./mcp/verification-schema.js";
 import { CdpBrowserSurface } from "./surfaces/browser/cdp.js";
 import { BrowserLauncher, BrowserSessionStore } from "./surfaces/browser/runtime.js";
+import { findAccessibilityNodes } from "./core/query.js";
+import { revalidateBrowserSemanticTarget } from "./surfaces/browser/guard.js";
 
 const runtime = new ComputerRuntime(createDefaultAdapter());
 
@@ -240,6 +242,22 @@ server.tool(
       ]
     };
   }
+);
+
+server.tool(
+  "computer_cancel",
+  "Request cancellation of the active native action and release any held input when the adapter exposes those hooks.",
+  {
+    session_id: z.string().min(1)
+  },
+  async ({ session_id }) => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(await runtime.cancel(session_id), null, 2)
+      }
+    ]
+  })
 );
 
 server.tool(
@@ -546,6 +564,14 @@ server.tool(
     requireOneBrowserTarget(target_id, session_id);
     requireOneBrowserLocator(selector, query);
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    if (query) {
+      const before = await browser.accessibility(target.targetId, target.endpoint);
+      const candidate = findAccessibilityNodes(before, query, role).find((match) => match.enabled !== false);
+      if (!candidate) throw new Error(`No enabled browser accessibility target matched "${query}".`);
+      const after = await browser.accessibility(target.targetId, target.endpoint);
+      revalidateBrowserSemanticTarget(candidate, after, query, role);
+    }
+
     const result = selector
       ? await browser.clickSelector(target.targetId, selector, target.endpoint)
       : await browser.clickAccessible(target.targetId, query!, role, target.endpoint);
@@ -563,6 +589,14 @@ server.tool(
     requireOneBrowserTarget(target_id, session_id);
     requireOneBrowserLocator(selector, query);
     const target = await resolveBrowserTarget({ target_id, session_id, endpoint });
+    if (query) {
+      const before = await browser.accessibility(target.targetId, target.endpoint);
+      const candidate = findAccessibilityNodes(before, query, role).find((match) => match.enabled !== false);
+      if (!candidate) throw new Error(`No enabled browser accessibility target matched "${query}".`);
+      const after = await browser.accessibility(target.targetId, target.endpoint);
+      revalidateBrowserSemanticTarget(candidate, after, query, role);
+    }
+
     const result = selector
       ? await browser.typeSelector(target.targetId, selector, text, target.endpoint)
       : await browser.typeAccessible(target.targetId, query!, text, role, target.endpoint);
