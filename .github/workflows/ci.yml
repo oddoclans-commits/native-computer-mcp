@@ -35,3 +35,11 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Validate Windows PowerShell helper
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'native/windows-native.ps1'
+          [void][ScriptBlock]::Create((Get-Content -Raw $path))
+          Write-Host "PowerShell parser validation passed."
