@@ -8,7 +8,8 @@ import type {
   DisplayInfo,
   Observation,
   Platform,
-  WindowInfo
+  WindowInfo,
+  DialogAdapter
 } from "../types.js";
 
 interface NativeResponse {
@@ -20,6 +21,12 @@ interface NativeResponse {
 export class WindowsAdapter extends BaseComputerAdapter {
   readonly platform: Platform = "windows";
   readonly name = "windows-win32-native";
+
+  readonly dialogs: DialogAdapter = {
+    selectFile: (path) => this.dialog("select_file", path),
+    selectFolder: (path) => this.dialog("select_folder", path),
+    setSavePath: (path) => this.dialog("set_save_path", path)
+  };
 
   async status() {
     if (process.platform !== "win32") {
@@ -94,6 +101,36 @@ export class WindowsAdapter extends BaseComputerAdapter {
   }
 
   async stop(): Promise<void> {}
+
+  private async dialog(
+    operation: "select_file" | "select_folder" | "set_save_path",
+    path: string
+  ): Promise<ActionResult> {
+    try {
+      const response = await this.invoke("dialog", { operation, path });
+      if (!response.ok) {
+        return {
+          status: "uncertain",
+          verification: "needs_observation",
+          nextObservationRequired: true,
+          message: response.message ?? "Windows dialog operation failed."
+        };
+      }
+      return {
+        status: "executed",
+        verification: "needs_observation",
+        nextObservationRequired: true,
+        evidence: [`native:${this.name}:dialog:${operation}`]
+      };
+    } catch (error) {
+      return {
+        status: "uncertain",
+        verification: "needs_observation",
+        nextObservationRequired: true,
+        message: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
 
   private async invoke(command: string, payload?: unknown): Promise<NativeResponse> {
     const encoded = Buffer.from(
