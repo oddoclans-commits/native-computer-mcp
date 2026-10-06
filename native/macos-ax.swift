@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import Darwin
 
 struct Point: Codable {
     let x: Double
@@ -94,6 +95,16 @@ func makeNode(_ element: AXUIElement, path: [Int], depth: Int, maxDepth: Int = 8
         "enabled": boolAttribute(element, kAXEnabledAttribute) ?? true
     ]
 
+    if let focused = boolAttribute(element, kAXFocusedAttribute) {
+        node["focused"] = focused
+    }
+    if let selected = boolAttribute(element, kAXSelectedAttribute) {
+        node["selected"] = selected
+    }
+    if let expanded = boolAttribute(element, kAXExpandedAttribute) {
+        node["expanded"] = expanded
+    }
+
     if let title = stringAttribute(element, kAXTitleAttribute), !title.isEmpty {
         node["name"] = title
     } else if let description = stringAttribute(element, kAXDescriptionAttribute), !description.isEmpty {
@@ -173,11 +184,37 @@ func click(_ point: CGPoint, _ button: CGMouseButton) {
     CGEvent(mouseEventSource: source, mouseType: upType, mouseCursorPosition: point, mouseButton: button)?.post(tap: .cghidEventTap)
 }
 
+func actionNames(_ element: AXUIElement) -> [String] {
+    var names: CFArray?
+    guard AXUIElementCopyActionNames(element, &names) == .success else { return [] }
+    return (names as? [String]) ?? []
+}
+
+func invokeNamedAction(_ element: AXUIElement, names preferred: [String]) throws {
+    let available = actionNames(element)
+    if let exact = preferred.first(where: { available.contains($0) }) {
+        let error = AXUIElementPerformAction(element, exact as CFString)
+        if error == .success { return }
+        throw NSError(
+            domain: "native-computer-mcp",
+            code: Int(error.rawValue),
+            userInfo: [NSLocalizedDescriptionKey: "AX action failed: " + exact]
+        )
+    }
+    throw NSError(
+        domain: "native-computer-mcp",
+        code: 20,
+        userInfo: [NSLocalizedDescriptionKey: "Requested AX action is not supported."]
+    )
+}
+
 func invoke(_ element: AXUIElement) throws {
-    let error = AXUIElementPerformAction(element, kAXPressAction as CFString)
-    if error != .success {
+    do {
+        try invokeNamedAction(element, names: [kAXPressAction as String, "AXPress", "AXConfirm"])
+        return
+    } catch {
         guard let bounds = boundsAttribute(element) else {
-            throw NSError(domain: "native-computer-mcp", code: Int(error.rawValue), userInfo: [NSLocalizedDescriptionKey: "AXPress failed."])
+            throw error
         }
         click(
             CGPoint(x: bounds.x + bounds.width / 2.0, y: bounds.y + bounds.height / 2.0),
@@ -185,6 +222,191 @@ func invoke(_ element: AXUIElement) throws {
         )
     }
 }
+
+func invokeSecondary(_ element: AXUIElement) throws {
+    let available = actionNames(element)
+    let preferred = ["AXShowMenu", "AXShowMenuAction", "AXContextMenu", "AXSecondary"]
+    for name in preferred where available.contains(name) {
+        let error = AXUIElementPerformAction(element, name as CFString)
+        if error == .success { return }
+    }
+
+    guard let bounds = boundsAttribute(element) else {
+        throw NSError(
+            domain: "native-computer-mcp",
+            code: 21,
+            userInfo: [NSLocalizedDescriptionKey: "AX target has no bounds for secondary action."]
+        )
+    }
+    click(
+        CGPoint(x: bounds.x + bounds.width / 2.0, y: bounds.y + bounds.height / 2.0),
+        .right
+    )
+}
+
+func setValue(_ element: AXUIElement, _ value: String) throws {
+    var settable = DarwinBoolean(false)
+    let settableError = AXUIElementIsAttributeSettable(
+        element,
+        kAXValueAttribute as CFString,
+        &settable
+    )
+    guard settableError == .success && settable.boolValue else {
+        throw NSError(
+            domain: "native-computer-mcp",
+            code: 22,
+            userInfo: [NSLocalizedDescriptionKey: "AX value attribute is not settable."]
+        )
+    }
+
+    let error = AXUIElementSetAttributeValue(
+        element,
+        kAXValueAttribute as CFString,
+        value as CFTypeRef
+    )
+    if error != .success {
+        throw NSError(
+            domain: "native-computer-mcp",
+            code: Int(error.rawValue),
+            userInfo: [NSLocalizedDescriptionKey: "AX value update failed."]
+        )
+    }
+}
+
+func modifierKeyCode(_ value: String) -> CGKeyCode? {
+    switch value.lowercased() {
+    case "command", "cmd", "meta", "logo": return 55
+    case "shift": return 56
+    case "option", "alt": return 58
+    case "control", "ctrl": return 59
+    case "rightshift": return 60
+    case "rightoption": return 61
+    case "rightcontrol": return 62
+    default: return nil
+    }
+}
+
+func keyCode(_ value: String) -> CGKeyCode? {
+    let normalized = value.lowercased()
+    let special: [String: CGKeyCode] = [
+        "return": 36, "enter": 36, "tab": 48, "space": 49, "escape": 53,
+        "esc": 53, "backspace": 51, "delete": 51,
+        "left": 123, "right": 124, "down": 125, "up": 126,
+        "home": 115, "end": 119, "pageup": 116, "pagedown": 121
+    ]
+    if let code = special[normalized] { return code }
+
+    switch normalized {
+    case "a": return 0; case "s": return 1; case "d": return 2; case "f": return 3
+    case "h": return 4; case "g": return 5; case "z": return 6; case "x": return 7
+    case "c": return 8; case "v": return 9; case "b": return 11; case "q": return 12
+    case "w": return 13; case "e": return 14; case "r": return 15; case "y": return 16
+    case "t": return 17; case "1": return 18; case "2": return 19; case "3": return 20
+    case "4": return 21; case "6": return 22; case "5": return 23; case "7": return 26
+    case "9": return 25; case "-": return 27; case "8": return 28; case "0": return 29
+    case "]": return 30; case "o": return 31; case "u": return 32; case "[": return 33
+    case "i": return 34; case "p": return 35; case "l": return 37; case "j": return 38
+    case "'": return 39; case "k": return 40; case ";": return 41; case "\\": return 42
+    case ",": return 43; case "/": return 44; case "n": return 45; case "m": return 46
+    case ".": return 47
+    case "f1": return 122; case "f2": return 120; case "f3": return 99; case "f4": return 118
+    case "f5": return 96; case "f6": return 97; case "f7": return 98; case "f8": return 100
+    case "f9": return 101; case "f10": return 109; case "f11": return 103; case "f12": return 111
+    default: return nil
+    }
+}
+
+func sendKey(_ value: String, modifiers: [String]) throws {
+    guard let code = keyCode(value) else {
+        throw NSError(domain: "native-computer-mcp", code: 30, userInfo: [NSLocalizedDescriptionKey: "Unsupported macOS key: " + value])
+    }
+
+    let source = CGEventSource(stateID: .combinedSessionState)
+    var held: [CGKeyCode] = []
+    for modifier in modifiers {
+        guard let modCode = modifierKeyCode(modifier) else {
+            throw NSError(domain: "native-computer-mcp", code: 31, userInfo: [NSLocalizedDescriptionKey: "Unsupported macOS modifier: " + modifier])
+        }
+        CGEvent(keyboardEventSource: source, virtualKey: modCode, keyDown: true)?.post(tap: .cghidEventTap)
+        held.append(modCode)
+    }
+
+    CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: true)?.post(tap: .cghidEventTap)
+    CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: false)?.post(tap: .cghidEventTap)
+
+    for modCode in held.reversed() {
+        CGEvent(keyboardEventSource: source, virtualKey: modCode, keyDown: false)?.post(tap: .cghidEventTap)
+    }
+}
+
+func sendText(_ text: String) {
+    let source = CGEventSource(stateID: .combinedSessionState)
+    for scalar in text.unicodeScalars {
+        var codeUnits = Array(String(scalar).utf16)
+        if codeUnits.isEmpty { continue }
+
+        if let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+           let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) {
+            codeUnits.withUnsafeMutableBufferPointer { buffer in
+                if let base = buffer.baseAddress {
+                    down.keyboardSetUnicodeString(UInt32(buffer.count), unicodeString: base)
+                    up.keyboardSetUnicodeString(UInt32(buffer.count), unicodeString: base)
+                }
+            }
+            down.post(tap: .cghidEventTap)
+            up.post(tap: .cghidEventTap)
+        }
+    }
+}
+
+func sendScroll(_ deltaX: Double, _ deltaY: Double) {
+    let source = CGEventSource(stateID: .combinedSessionState)
+    if let event = CGEvent(
+        scrollWheelEvent2Source: source,
+        units: .pixel,
+        wheelCount: 2,
+        wheel1: Int32(deltaY),
+        wheel2: Int32(deltaX),
+        wheel3: 0
+    ) {
+        event.post(tap: .cghidEventTap)
+    }
+}
+
+func sendDrag(_ from: CGPoint, _ to: CGPoint, durationMs: Int) {
+    let source = CGEventSource(stateID: .combinedSessionState)
+    let steps = max(2, min(40, Int(ceil(Double(max(durationMs, 1)) / 20.0))))
+
+    CGEvent(
+        mouseEventSource: source,
+        mouseType: .leftMouseDown,
+        mouseCursorPosition: from,
+        mouseButton: .left
+    )?.post(tap: .cghidEventTap)
+
+    for index in 1...steps {
+        let t = CGFloat(index) / CGFloat(steps)
+        let point = CGPoint(
+            x: from.x + (to.x - from.x) * t,
+            y: from.y + (to.y - from.y) * t
+        )
+        CGEvent(
+            mouseEventSource: source,
+            mouseType: .leftMouseDragged,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        )?.post(tap: .cghidEventTap)
+        usleep(20_000)
+    }
+
+    CGEvent(
+        mouseEventSource: source,
+        mouseType: .leftMouseUp,
+        mouseCursorPosition: to,
+        mouseButton: .left
+    )?.post(tap: .cghidEventTap)
+}
+
 func setValue(_ element: AXUIElement, _ value: String) throws {
     let error = AXUIElementSetAttributeValue(
         element,
