@@ -44,6 +44,7 @@ v0.1 currently includes:
 - strict MCP action schemas
 - screenshot delivery as MCP image content
 - Windows native input + window/display discovery + screenshots
+- Windows UIA accessibility tree with `targetId`, `ValuePattern`, invoke/toggle/select, and semantic secondary actions
 - Linux X11 native input + window/display discovery + screenshots
 - explicit action/verification semantics
 - GitHub Actions CI on Linux and Windows
