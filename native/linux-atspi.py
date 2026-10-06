@@ -123,16 +123,39 @@ def perform_primary(obj):
     raise RuntimeError("AT-SPI target exposes no supported primary action.")
 
 def pointer_click(obj, button):
+    rect = rect_for(obj)
+    if not rect:
+        raise RuntimeError("AT-SPI target has no usable bounds.")
+
+    x = rect["x"] + max(0, rect["width"] // 2)
+    y = rect["y"] + max(0, rect["height"] // 2)
+
+    if os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland":
+        tool = shutil.which("ydotool")
+        if not tool:
+            raise RuntimeError("Wayland AT-SPI pointer fallback requires ydotool/ydotoold.")
+        button_id = {"left": "0xC0", "middle": "0xC2", "right": "0xC1"}[button]
+        subprocess.run(
+            [tool, "mousemove", "--absolute", str(x), str(y)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        subprocess.run(
+            [tool, "click", button_id],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return
+
     if not os.environ.get("DISPLAY"):
         raise RuntimeError("Native pointer fallback requires DISPLAY/X11.")
     tool = shutil.which("xdotool")
     if not tool:
         raise RuntimeError("Native pointer fallback requires xdotool.")
-    rect = rect_for(obj)
-    if not rect:
-        raise RuntimeError("AT-SPI target has no usable bounds.")
-    x = rect["x"] + max(0, rect["width"] // 2)
-    y = rect["y"] + max(0, rect["height"] // 2)
     button_id = {"left": "1", "middle": "2", "right": "3"}[button]
     subprocess.run(
         [tool, "mousemove", "--sync", str(x), str(y)],
