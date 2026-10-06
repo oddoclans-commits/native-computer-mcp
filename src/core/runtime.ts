@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { SessionManager } from "./session.js";
 import { verifyObservation, type VerificationSpec } from "./verification.js";
-import { observationDiff, type ObservationDiff } from "./diff.js";
+import { observationDiff } from "./diff.js";
 import { FileTraceSink } from "./trace.js";
 import { findAccessibilityNodes, type AccessibilityMatch } from "./query.js";
 import type {
@@ -13,7 +13,8 @@ import type {
   RiskTier,
   SafetyMode,
   DialogAdapter,
-  VerificationResult
+  VerificationResult,
+  ObservationDiff
 } from "../types.js";
 
 export class ComputerRuntime {
