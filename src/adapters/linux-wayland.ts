@@ -1,5 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { BaseComputerAdapter } from "./base.js";
 import { commandExists, runCommand } from "./command.js";
 import type { ActionRequest, ActionResult, Observation, Platform, Rect } from "../types.js";
@@ -230,11 +233,14 @@ export class LinuxWaylandAdapter extends BaseComputerAdapter {
   }
 
   private async getScreenshot(): Promise<Observation["screenshot"] | undefined> {
-    try {
-      const result = await runCommand("grim", [], { timeoutMs: 10_000 });
-      if (result.code !== 0 || !result.stdout) return undefined;
+    const directory = await mkdtemp(join(tmpdir(), "native-computer-mcp-"));
+    const path = join(directory, "screen.png");
 
-      const bytes = Buffer.from(result.stdout, "binary");
+    try {
+      const result = await runCommand("grim", [path], { timeoutMs: 10_000 });
+      if (result.code !== 0) return undefined;
+
+      const bytes = await readFile(path);
       if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) return undefined;
 
       const data = bytes.toString("base64");
@@ -249,6 +255,8 @@ export class LinuxWaylandAdapter extends BaseComputerAdapter {
       };
     } catch {
       return undefined;
+    } finally {
+      await rm(directory, { recursive: true, force: true }).catch(() => {});
     }
   }
 
