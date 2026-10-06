@@ -30,17 +30,17 @@ struct Payload: Codable {
     let to: Point?
 }
 
-func attribute(_ element: AXUIElement, _ name: CFString) -> CFTypeRef? {
+func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?
-    let error = AXUIElementCopyAttributeValue(element, name, &value)
+    let error = AXUIElementCopyAttributeValue(element, name as CFString, &value)
     return error == .success ? value : nil
 }
 
-func stringAttribute(_ element: AXUIElement, _ name: CFString) -> String? {
+func stringAttribute(_ element: AXUIElement, _ name: String) -> String? {
     attribute(element, name) as? String
 }
 
-func boolAttribute(_ element: AXUIElement, _ name: CFString) -> Bool? {
+func boolAttribute(_ element: AXUIElement, _ name: String) -> Bool? {
     attribute(element, name) as? Bool
 }
 
@@ -98,8 +98,10 @@ func makeNode(_ element: AXUIElement, path: [Int], depth: Int, maxDepth: Int = 8
     }
 
     var actions: [String] = []
-    if let value = attribute(element, kAXActionsAttribute) as? [String] {
-        actions = Array(value.prefix(16))
+    var actionNames: CFArray?
+    if AXUIElementCopyActionNames(element, &actionNames) == .success,
+       let names = actionNames as? [String] {
+        actions = Array(names.prefix(16))
     }
     if !actions.isEmpty {
         node["patterns"] = actions
@@ -150,8 +152,8 @@ func axRoot() throws -> AXUIElement {
 }
 
 func click(_ point: CGPoint, _ button: CGMouseButton) {
-    let downType: CGEventType = button == .right ? .rightMouseDown : button == .middle ? .otherMouseDown : .leftMouseDown
-    let upType: CGEventType = button == .right ? .rightMouseUp : button == .middle ? .otherMouseUp : .leftMouseUp
+    let downType: CGEventType = button == .right ? .rightMouseDown : button == .center ? .otherMouseDown : .leftMouseDown
+    let upType: CGEventType = button == .right ? .rightMouseUp : button == .center ? .otherMouseUp : .leftMouseUp
     let source = CGEventSource(stateID: .combinedSessionState)
     CGEvent(mouseEventSource: source, mouseType: downType, mouseCursorPosition: point, mouseButton: button)?.post(tap: .cghidEventTap)
     CGEvent(mouseEventSource: source, mouseType: upType, mouseCursorPosition: point, mouseButton: button)?.post(tap: .cghidEventTap)
@@ -174,7 +176,7 @@ func setValue(_ element: AXUIElement, _ value: String) throws {
     let error = AXUIElementSetAttributeValue(
         element,
         kAXValueAttribute as CFString,
-        value as CFString
+        value as CFTypeRef
     )
     if error != .success {
         throw NSError(domain: "native-computer-mcp", code: Int(error.rawValue), userInfo: [NSLocalizedDescriptionKey: "AX value update failed."])
